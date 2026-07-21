@@ -138,10 +138,14 @@ export async function syncUserBanks(
           }
         }
 
+        // available-balance excludes pending holds -> that's the spendable truth.
+        const ledger = parseFloat(remote.balance);
+        const avail = remote["available-balance"] != null ? parseFloat(remote["available-balance"]) : ledger;
         await db
           .from("bank_accounts")
           .update({
-            last_balance: parseFloat(remote.balance),
+            last_balance: isNaN(avail) ? ledger : avail,
+            ledger_balance: isNaN(ledger) ? null : ledger,
             last_synced_at: new Date().toISOString(),
             last_error: null,
             needs_reauth: false,

@@ -50,7 +50,8 @@ export async function POST(req: Request) {
       teller_account_id: a.id,
       name: `${connectionName(set, a)} — ${a.name}`,
       type: /sav/i.test(String(a.name)) ? "savings" : "checking",
-      last_balance: parseFloat(a.balance),
+      last_balance: parseFloat(a["available-balance"] ?? a.balance),
+      ledger_balance: parseFloat(a.balance),
       access_token_encrypted: enc,
     }));
     await admin.from("bank_accounts").upsert(rows, { onConflict: "teller_account_id" });

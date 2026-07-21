@@ -84,6 +84,7 @@ export interface BankAccount {
   name: string;
   type: "checking" | "savings";
   last_balance: number | null;
+  ledger_balance: number | null;
   last_synced_at: string | null;
   needs_reauth: boolean;
   last_error: string | null;

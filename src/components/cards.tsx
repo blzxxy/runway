@@ -32,7 +32,10 @@ export function Bar({
 }
 
 export function CashCard() {
-  const { derived, profile, checkingCash, savingsCash, lastSyncedAt, syncing, syncNow, updateProfile } = useFinance();
+  const { derived, profile, banks, checkingCash, savingsCash, lastSyncedAt, syncing, syncNow, updateProfile } = useFinance();
+  const pendingHolds = banks
+    .filter((b) => b.type === "checking" && b.ledger_balance != null && b.last_balance != null)
+    .reduce((s, b) => s + Math.max(0, (b.ledger_balance ?? 0) - (b.last_balance ?? 0)), 0);
   const { cash, nextPay, schoolPaid, schoolItem } = derived;
   const schoolDays = profile.school_due_date ? daysUntil(profile.school_due_date) : null;
   const schoolBal = schoolItem?.balAfter ?? null;
@@ -71,6 +74,11 @@ export function CashCard() {
       <div className={`text-5xl font-extrabold mt-1 money ${headline >= 0 ? "text-zinc-50" : "text-rose-400"}`}>
         <AnimatedMoney value={headline} />
       </div>
+      {bankVerified && pendingHolds > 0.5 && (
+        <p className="text-xs text-zinc-500 mt-1">
+          {fmt(pendingHolds, true)} on hold for pending purchases (already excluded from this number)
+        </p>
+      )}
       {bankVerified && savingsCash > 0 && (
         <p className="text-xs text-zinc-500 mt-1">
           <Landmark size={10} className="inline mr-1" />

@@ -69,7 +69,7 @@ const normFlip = (f: any): Flip => ({
   payout: numOrNull(f.payout),
 });
 const normEv = (e: any): Ev => ({ ...e, amount: num(e.amount) });
-const normBank = (b: any): BankAccount => ({ ...b, last_balance: numOrNull(b.last_balance) });
+const normBank = (b: any): BankAccount => ({ ...b, last_balance: numOrNull(b.last_balance), ledger_balance: numOrNull(b.ledger_balance) });
 const normRule = (r: any): CategoryRule => ({ ...r, priority: num(r.priority) });
 
 /* ---------- context ---------- */
