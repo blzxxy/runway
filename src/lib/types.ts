@@ -20,6 +20,7 @@ export interface Profile {
   notify_school: boolean;
   notify_budget: boolean;
   notify_ring: boolean;
+  notify_teller: boolean;
   ring_milestone_notified: boolean;
   onboarded: boolean;
 }
@@ -34,6 +35,9 @@ export interface Tx {
   note: string | null;
   target: SavingsTarget | null;
   flip_id: string | null;
+  source: "manual" | "teller";
+  teller_id: string | null;
+  account_id: string | null;
   created_at?: string;
 }
 
@@ -68,6 +72,28 @@ export interface Ev {
   tx_id: string | null;
   recurring_rule: RecurringRule | null;
   recurring_source_id: string | null;
+}
+
+export interface BankAccount {
+  id: string;
+  user_id: string;
+  teller_enrollment_id: string;
+  teller_account_id: string;
+  name: string;
+  type: "checking" | "savings";
+  last_balance: number | null;
+  last_synced_at: string | null;
+  needs_reauth: boolean;
+  last_error: string | null;
+}
+
+export interface CategoryRule {
+  id: string;
+  user_id: string;
+  match_field: "merchant" | "note" | "amount";
+  match_pattern: string;
+  category: string;
+  priority: number;
 }
 
 export interface AddPrefill {

@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   Bell,
   Download,
+  Landmark,
+  RefreshCw,
   LogOut,
   Plus,
   Repeat,
@@ -12,6 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useFinance } from "@/components/finance-provider";
+import SimpleFinConnect from "@/components/simplefin-connect";
 import { createClient } from "@/lib/supabase/client";
 import { fmt, fmtDate, todayStr } from "@/lib/finance";
 import {
@@ -62,7 +65,7 @@ function MoneyField({
 
 export default function SettingsPage() {
   const fin = useFinance();
-  const { profile, events, updateProfile, addRecurring, updateSeries, stopSeries, importV1, deleteAllData, signOut } = fin;
+  const { profile, events, banks, rules, updateProfile, addRecurring, updateSeries, stopSeries, importV1, deleteAllData, signOut, syncNow, syncing, disconnectEnrollment, addRule, deleteRule } = fin;
 
   /* ---- profile form state ---- */
   const [startingCash, setStartingCash] = useState(String(profile.starting_cash));
@@ -120,11 +123,12 @@ export default function SettingsPage() {
     setPushMsg("Notifications disabled on this device.");
   };
 
-  const toggles: { key: "notify_payday" | "notify_school" | "notify_budget" | "notify_ring"; label: string }[] = [
+  const toggles: { key: "notify_payday" | "notify_school" | "notify_budget" | "notify_ring" | "notify_teller"; label: string }[] = [
     { key: "notify_payday", label: "Payday mornings" },
     { key: "notify_school", label: "School payment reminders" },
     { key: "notify_budget", label: "Weekly budget at 90%+" },
     { key: "notify_ring", label: "Ring fund milestone" },
+    { key: "notify_teller", label: "Bank sync failures" },
   ];
 
   /* ---- recurring events ---- */
@@ -161,6 +165,13 @@ export default function SettingsPage() {
     setNewLabel("");
     setNewAmount("");
   };
+
+  /* ---- bank + rules state ---- */
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [rulePattern, setRulePattern] = useState("");
+  const [ruleField, setRuleField] = useState<"merchant" | "amount">("merchant");
+  const [ruleCategory, setRuleCategory] = useState("Gas");
+  const enrollments = Array.from(new Set(banks.map((b) => b.teller_enrollment_id)));
 
   /* ---- import ---- */
   const fileRef = useRef<HTMLInputElement>(null);
@@ -308,6 +319,116 @@ export default function SettingsPage() {
           </div>
           <button onClick={addSeries} className="w-full py-2.5 rounded-xl bg-zinc-700 text-zinc-100 text-sm font-semibold flex items-center justify-center gap-1">
             <Plus size={14} /> Add recurring
+          </button>
+        </div>
+      </Card>
+
+      <Card title="Bank connections">
+        {banks.length === 0 ? (
+          <p className="text-sm text-zinc-500 mb-3">
+            No bank linked. Connect via SimpleFIN Bridge ($1.50/mo) to auto-import transactions and show your real balance.
+          </p>
+        ) : (
+          <div className="space-y-2 mb-3">
+            {banks.map((b) => (
+              <div key={b.id} className="bg-zinc-800 rounded-xl p-3 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                    <Landmark size={13} className="text-zinc-500" /> {b.name}
+                  </div>
+                  <div className="text-xs text-zinc-500">
+                    <button onClick={() => fin.toggleBankType(b.id)} className="underline decoration-dotted">{b.type}</button> · {b.last_balance != null ? fmt(b.last_balance) : "—"} ·{" "}
+                    {b.last_synced_at ? "synced " + fmtDate(b.last_synced_at.slice(0, 10)) : "never synced"}
+                    {b.needs_reauth && <span className="text-red-400"> · needs reconnect</span>}
+                  </div>
+                  {b.last_error && <div className="text-xs text-red-400 truncate">{b.last_error}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {banks.length > 0 && (
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={async () => {
+                setSyncMsg(null);
+                const r = await syncNow();
+                setSyncMsg(r ? `Imported ${r.imported} new transaction${r.imported === 1 ? "" : "s"}${r.errors.length ? " · " + r.errors.join("; ") : ""}` : "Sync failed — try again.");
+              }}
+              disabled={syncing}
+              className="flex-1 py-2.5 rounded-xl bg-green-800 text-green-100 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync now"}
+            </button>
+            {enrollments.map((en) => (
+              <button
+                key={en}
+                onClick={() => {
+                  if (window.confirm("Disconnect this bank? Imported transactions stay; balances stop updating."))
+                    disconnectEnrollment(en);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-red-950 text-red-300 text-sm font-semibold"
+              >
+                Disconnect
+              </button>
+            ))}
+          </div>
+        )}
+        {syncMsg && <p className="text-xs text-zinc-400 mb-3">{syncMsg}</p>}
+        <SimpleFinConnect onConnected={() => fin.refresh()} />
+        <p className="text-xs text-zinc-600 mt-2">
+          Auto-sync runs daily in the background and whenever you open the app after 6+ hours.
+        </p>
+      </Card>
+
+      <Card title="Categorization rules">
+        <p className="text-xs text-zinc-500 mb-3">
+          Teach the importer: transactions matching a rule get your category automatically. Your
+          rules run before the built-in ones (gas stations, restaurants, etc.).
+        </p>
+        {rules.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {rules.map((r) => (
+              <div key={r.id} className="bg-zinc-800 rounded-xl px-3 py-2 flex items-center justify-between text-sm">
+                <span className="truncate text-zinc-300">
+                  {r.match_field === "amount" ? `amount = ${r.match_pattern}` : `"${r.match_pattern}"`}
+                  <span className="text-zinc-500"> → </span>
+                  <b>{r.category}</b>
+                </span>
+                <button onClick={() => deleteRule(r.id)} className="text-zinc-600 pl-2">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 mb-2">
+          <select value={ruleField} onChange={(e) => setRuleField(e.target.value as any)} className={inputCls + " flex-1"}>
+            <option value="merchant">Merchant contains</option>
+            <option value="amount">Amount equals</option>
+          </select>
+          <input
+            value={rulePattern}
+            onChange={(e) => setRulePattern(e.target.value)}
+            placeholder={ruleField === "amount" ? "200 or 195-205" : "e.g. costco"}
+            className={inputCls + " flex-1"}
+          />
+        </div>
+        <div className="flex gap-2">
+          <select value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} className={inputCls + " flex-1"}>
+            {["Gas", "Eating out", "Car", "School", "Paycheck", "Preaching", "Other"].map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <button
+            onClick={async () => {
+              if (!rulePattern.trim()) return;
+              await addRule({ match_field: ruleField, match_pattern: rulePattern.trim(), category: ruleCategory, priority: 50 });
+              setRulePattern("");
+            }}
+            className="px-4 py-2.5 rounded-xl bg-zinc-700 text-sm font-semibold"
+          >
+            Add
           </button>
         </div>
       </Card>

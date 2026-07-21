@@ -14,15 +14,14 @@ import { useFinance } from "./finance-provider";
 import { fmt, fmtDate } from "@/lib/finance";
 import type { ChartPoint } from "@/lib/finance";
 
+type Mode = "checking" | "checking+savings" | "cash+ring";
+
 function ChartTip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const p: ChartPoint = payload[0].payload;
   const v = p.actual ?? p.projected;
   return (
-    <div
-      className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs"
-      style={{ maxWidth: 230 }}
-    >
+    <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs" style={{ maxWidth: 230 }}>
       <div className="font-bold text-zinc-100">
         {p.label} · {v != null ? fmt(v) : "—"}
         {p.actual == null && <span className="text-zinc-500"> (projected)</span>}
@@ -40,23 +39,61 @@ function ChartTip({ active, payload }: any) {
 }
 
 export default function BalanceChart() {
-  const { chart, profile, derived } = useFinance();
+  const { chart, profile, derived, checkingCash, savingsCash, banks } = useFinance();
   const [selected, setSelected] = useState<ChartPoint | null>(null);
+  const [mode, setMode] = useState<Mode>("checking");
+
+  // Shift the whole series so "today" anchors on the chosen balance.
+  const offset =
+    mode === "checking"
+      ? checkingCash != null
+        ? checkingCash - derived.cash
+        : 0
+      : mode === "checking+savings"
+      ? checkingCash != null
+        ? checkingCash + savingsCash - derived.cash
+        : 0
+      : derived.ringBalance; // cash + ring fund
+
+  const data: ChartPoint[] = chart.map((p) => ({
+    ...p,
+    actual: p.actual != null ? Math.round((p.actual + offset) * 100) / 100 : null,
+    projected: p.projected != null ? Math.round((p.projected + offset) * 100) / 100 : null,
+  }));
 
   const schoolLabel =
     profile.school_due_date && !derived.schoolPaid && chart.some((p) => p.date === profile.school_due_date)
       ? fmtDate(profile.school_due_date)
       : null;
 
+  const chip = (m: Mode, label: string, disabled = false) => (
+    <button
+      key={m}
+      disabled={disabled}
+      onClick={() => setMode(m)}
+      className={`px-2.5 py-1 rounded-full whitespace-nowrap ${
+        mode === m ? "bg-zinc-100 text-zinc-900 font-semibold" : "bg-zinc-800 text-zinc-500"
+      } ${disabled ? "opacity-40" : ""}`}
+      style={{ fontSize: 11 }}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="bg-zinc-900 rounded-3xl p-5">
-      <div className="text-sm font-semibold text-zinc-300 mb-1">
-        Balance · 30 days back, 30 forward
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="text-sm font-semibold text-zinc-300">Balance · 30d back, 30d ahead</div>
+      </div>
+      <div className="flex gap-1.5 mb-2 overflow-x-auto">
+        {chip("checking", banks.length ? "Checking" : "Cash")}
+        {chip("checking+savings", "+ Savings", banks.length === 0)}
+        {chip("cash+ring", "+ Ring fund")}
       </div>
       <div style={{ width: "100%", height: 220 }}>
         <ResponsiveContainer>
           <LineChart
-            data={chart}
+            data={data}
             margin={{ top: 10, right: 8, left: -12, bottom: 0 }}
             onClick={(e: any) => {
               if (e && e.activePayload && e.activePayload.length) {
@@ -64,13 +101,7 @@ export default function BalanceChart() {
               }
             }}
           >
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10, fill: "#71717a" }}
-              interval={9}
-              axisLine={false}
-              tickLine={false}
-            />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#71717a" }} interval={9} axisLine={false} tickLine={false} />
             <YAxis
               tick={{ fontSize: 10, fill: "#71717a" }}
               axisLine={false}
@@ -88,14 +119,7 @@ export default function BalanceChart() {
               />
             )}
             <Tooltip content={<ChartTip />} />
-            <Line
-              type="monotone"
-              dataKey="actual"
-              stroke="#22c55e"
-              strokeWidth={2}
-              dot={false}
-              isAnimationActive={false}
-            />
+            <Line type="monotone" dataKey="actual" stroke="#22c55e" strokeWidth={2} dot={false} isAnimationActive={false} />
             <Line
               type="monotone"
               dataKey="projected"

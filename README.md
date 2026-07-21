@@ -1,7 +1,7 @@
-# Runway v2 — Personal Finance PWA
+# Runway v2.2 — Personal Finance PWA with Bank Sync (SimpleFIN)
 
 Cash runway, savings goals (ring fund + emergency buffer), weekly budget, Pokémon-flip tracker
-with eBay fee math, projected timeline, and push notifications. Dark, mobile-first, installable
+with eBay fee math, projected timeline, push notifications, and automatic bank import via SimpleFIN Bridge. Dark, mobile-first, installable
 on your iPhone Home Screen, synced across devices via Supabase.
 
 Built with Next.js 14 (App Router) + TypeScript + Tailwind, deployable on Vercel's free tier.
@@ -28,7 +28,47 @@ Built with Next.js 14 (App Router) + TypeScript + Tailwind, deployable on Vercel
    - `anon` `public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (server-only — never share this)
 
-## 2. Generate VAPID keys for push notifications (~1 minute)
+## 2. SimpleFIN Bridge — bank linking + auto-import (~10 minutes)
+
+SimpleFIN Bridge connects Runway to your real bank for **$1.50/month or $15/year** (up to 25
+institutions). No API keys, no certificates — you paste a one-time token into the app and you're
+done.
+
+### One-time setup
+1. Go to [bridge.simplefin.org](https://bridge.simplefin.org) and create an account
+   (this is where the $15/yr is paid).
+2. In the Bridge dashboard, **connect your bank** (checking + savings).
+3. That's it for setup — the token step happens inside Runway itself:
+   - In Runway (onboarding, or Settings → Bank connections) tap
+     **"Get a token at SimpleFIN Bridge"** — it opens the Bridge's token page.
+   - Copy the token it gives you (a long base64 string).
+   - Paste it into Runway and tap **Connect bank**.
+   - Each token works exactly once. If a token errors as "already claimed,"
+     just generate a fresh one.
+
+### Token encryption key
+Runway stores your SimpleFIN access credentials encrypted at rest in Supabase. Generate a key:
+```bash
+openssl rand -hex 32
+```
+(or PowerShell: `-join ((1..32) | ForEach-Object { "{0:x2}" -f (Get-Random -Max 256) })`)
+-> set it as `ENCRYPTION_KEY` in Vercel.
+
+### How syncing works
+- Connecting stores the encrypted access URL and runs a first import (last ~35 days).
+- Transactions are deduplicated by SimpleFIN's stable transaction id, auto-categorized (your
+  rules in Settings run first, then built-ins: gas stations, restaurants, ~$200 -> Car,
+  Sam's Club -> flagged for review, paycheck-like deposits -> Paycheck), and auto-matched
+  against pending timeline events (±2 days, ±$5) so paydays and the car payment mark
+  themselves actual automatically.
+- Balances land in `bank_accounts`; Home shows "bank verified" cash and warns if it drifts
+  >$10 from the running total. Pending transactions are ignored until they post.
+- **Refresh cadence:** SimpleFIN refreshes bank data roughly once a day, so the daily Vercel
+  cron + sync-on-open is a perfect match. "Sync now" in Settings pulls whatever Bridge has.
+- If an account's name doesn't say "savings," Runway guesses "checking" — tap the type label
+  in Settings → Bank connections to flip it.
+
+## 3. Generate VAPID keys for push notifications (~1 minute)
 
 On any machine with Node installed:
 
@@ -45,7 +85,7 @@ Set `VAPID_SUBJECT` to `mailto:your-email@example.com`.
 Also invent a `CRON_SECRET` — any long random string (e.g. run `openssl rand -hex 32`).
 Vercel automatically sends it with cron requests so nobody else can trigger your notifications.
 
-## 3. Deploy to Vercel (~5 minutes)
+## 4. Deploy to Vercel (~5 minutes)
 
 1. Push this folder to a new GitHub repo:
    ```bash
@@ -67,7 +107,7 @@ Vercel automatically sends it with cron requests so nobody else can trigger your
 Vercel's free (Hobby) plan supports daily crons; runs land within about an hour of the scheduled
 time. During winter (EST) 8am ET is 13:00 UTC — change the schedule in `vercel.json` if you care.
 
-## 4. Install on your iPhone
+## 5. Install on your iPhone
 
 1. Open your Vercel URL in **Safari** on the phone.
 2. Sign in with your email → tap the magic link from your inbox.
@@ -78,11 +118,18 @@ time. During winter (EST) 8am ET is 13:00 UTC — change the schedule in `vercel
 6. Go to **Settings (in the app) → Notifications → Enable**, and accept the iOS prompt.
    Requires iOS 16.4 or later.
 
-## 5. Import your v1 data (optional)
+## 6. Import your v1 data (optional)
 
 If you used the v1 single-file artifact: export a JSON backup there, then in this app go to
 **Settings → Data → Import from v1 artifact JSON**. Leave "clear existing first" checked to
 avoid duplicating the seeded events/flips.
+
+## Upgrading an existing v2 deployment to v2.2
+
+Already deployed v2? Three steps, no data loss:
+1. **Supabase:** paste `supabase/migration-v2.1-teller.sql` into the SQL Editor and Run.
+2. **Vercel:** add one new env var: `ENCRYPTION_KEY` (see section 2).
+3. **Code:** copy these files over your repo, commit, push — Vercel redeploys automatically.
 
 ## Local development
 
@@ -112,7 +159,10 @@ src/middleware.ts          Auth session refresh + route protection
 src/app/login              Magic-link sign-in
 src/app/onboarding         First-run setup wizard (7 steps, all skippable)
 src/app/(app)/             Authenticated app: Home, Timeline, Flips, Settings
-src/app/api/cron/...       Daily push-notification check (Vercel cron)
+src/app/api/cron/...       Daily push notifications + daily bank sync (Vercel cron)
+src/app/api/simplefin/...  Bank connect + manual sync (server-only)
+src/lib/simplefin*.ts      SimpleFIN client, categorizer, sync engine
+src/lib/crypto.ts          AES-256-GCM token encryption
 src/components/            FinanceProvider (data + realtime), cards, chart, quick-add
 src/lib/finance.ts         All money math (fees, projections, chart series)
 public/sw.js               Service worker (push + notification clicks)

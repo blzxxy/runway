@@ -132,6 +132,22 @@ export async function GET(req: Request) {
       }
     }
 
+    // 6. Teller sync failed for >24h
+    if (profile.notify_teller) {
+      const { data: banks } = await db.from("bank_accounts").select("*").eq("user_id", uid);
+      const stale = (banks ?? []).filter((b) => {
+        if (b.needs_reauth) return true;
+        if (!b.last_synced_at) return false;
+        return Date.now() - new Date(b.last_synced_at).getTime() > 24 * 3600 * 1000;
+      });
+      if (stale.length > 0) {
+        msgs.push({
+          title: "Bank sync failed",
+          body: `${stale.map((b) => b.name).join(", ")} hasn't synced in over 24h — open Settings to reconnect.`,
+        });
+      }
+    }
+
     // Deliver to every device this user has registered
     const userSubs = subs.filter((s) => s.user_id === uid);
     for (const m of msgs) {

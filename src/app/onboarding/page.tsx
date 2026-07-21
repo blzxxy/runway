@@ -6,6 +6,7 @@ import { Bell, ChevronRight, Gem, Share, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULTS, SEED_FLIPS, SEED_ONE_TIME, SEED_RECURRING } from "@/lib/seed";
 import { isIOS, isStandalone, subscribeToPush } from "@/lib/push";
+import SimpleFinConnect from "@/components/simplefin-connect";
 
 const inputCls =
   "w-full bg-zinc-800 rounded-xl px-4 py-3 text-zinc-100 outline-none border border-zinc-700 focus:border-zinc-500";
@@ -27,6 +28,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
+  const [bankLinked, setBankLinked] = useState<string | null>(null);
 
   // Step state (defaults = Ethan's current situation)
   const [cash, setCash] = useState(String(DEFAULTS.starting_cash));
@@ -176,11 +178,42 @@ export default function OnboardingPage() {
       ),
     },
     {
+      title: "Connect your bank",
+      body: (
+        <div className="space-y-3">
+          <p className="text-sm text-zinc-400">
+            Link your checking + savings through SimpleFIN and Runway auto-imports transactions, categorizes them
+            (gas, eating out, paychecks…), and shows your <b className="text-zinc-200">real bank
+            balance</b> instead of a running guess. Skip to stay fully manual.
+          </p>
+          {bankLinked ? (
+            <div className="bg-green-950 border border-green-800 rounded-xl p-3 text-sm text-green-200">
+              ✓ {bankLinked} connected — balances and transactions imported.
+            </div>
+          ) : (
+            <SimpleFinConnect
+              onConnected={(res) => {
+                const checking = (res.accounts ?? []).find((a: any) => a.type === "checking");
+                if (checking?.last_balance != null) setCash(String(checking.last_balance));
+                setBankLinked(
+                  (res.accounts ?? []).map((a: any) => a.name).join(", ") || "Bank"
+                );
+              }}
+            />
+          )}
+          <p className="text-xs text-zinc-600">
+            Your bank login stays with SimpleFIN Bridge ($1.50/mo or $15/yr) — this app only ever sees
+            read-only balances and transactions. Disconnect any time in Settings.
+          </p>
+        </div>
+      ),
+    },
+    {
       title: "Starting cash",
       body: (
         <div>
           <p className="text-sm text-zinc-400 mb-3">
-            What's in your account right now? This is the baseline every projection builds on.
+            What's in your account right now? This is the baseline every projection builds on.{bankLinked ? " (Pre-filled from your bank.)" : ""}
           </p>
           <div className="flex items-center bg-zinc-800 rounded-xl border border-zinc-700 px-4">
             <span className="text-2xl text-zinc-500 mr-1">$</span>

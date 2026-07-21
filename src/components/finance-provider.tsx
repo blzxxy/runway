@@ -12,7 +12,6 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  addBusinessDays,
   addDays,
   buildChartSeries,
   buzz,
@@ -24,8 +23,18 @@ import {
   type Derived,
 } from "@/lib/finance";
 import { V1_FLIP_STATUS } from "@/lib/seed";
-import type { AddPrefill, Ev, Flip, Profile, RecurringRule, Tx } from "@/lib/types";
+import type {
+  AddPrefill,
+  BankAccount,
+  CategoryRule,
+  Ev,
+  Flip,
+  Profile,
+  RecurringRule,
+  Tx,
+} from "@/lib/types";
 import QuickAddSheet, { type QuickAddPayload } from "./quick-add";
+import TxEditSheet from "./tx-edit";
 
 /* ---------- normalization: Postgres numeric arrives as string ---------- */
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
@@ -55,6 +64,8 @@ const normFlip = (f: any): Flip => ({
   payout: numOrNull(f.payout),
 });
 const normEv = (e: any): Ev => ({ ...e, amount: num(e.amount) });
+const normBank = (b: any): BankAccount => ({ ...b, last_balance: numOrNull(b.last_balance) });
+const normRule = (r: any): CategoryRule => ({ ...r, priority: num(r.priority) });
 
 /* ---------- context ---------- */
 interface FinanceCtx {
@@ -64,11 +75,19 @@ interface FinanceCtx {
   txs: Tx[];
   flips: Flip[];
   events: Ev[];
+  banks: BankAccount[];
+  rules: CategoryRule[];
   derived: Derived;
   chart: ChartPoint[];
+  checkingCash: number | null;
+  savingsCash: number;
+  lastSyncedAt: string | null;
+  syncing: boolean;
   refresh: () => Promise<void>;
   openAdd: (prefill?: AddPrefill) => void;
+  openTxEdit: (tx: Tx) => void;
   deleteTx: (id: string) => Promise<void>;
+  updateTx: (id: string, patch: Partial<Tx>) => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
   updateFlip: (id: string, patch: Partial<Flip>) => Promise<void>;
   deleteFlip: (id: string) => Promise<void>;
@@ -86,6 +105,11 @@ interface FinanceCtx {
   updateSeries: (rootId: string, patch: { label?: string; amount?: number }) => Promise<void>;
   stopSeries: (rootId: string) => Promise<void>;
   ringPurchase: (p: { amount: number; date: string; note: string }) => Promise<void>;
+  addRule: (r: Omit<CategoryRule, "id" | "user_id">) => Promise<void>;
+  deleteRule: (id: string) => Promise<void>;
+  syncNow: () => Promise<{ imported: number; errors: string[] } | null>;
+  disconnectEnrollment: (enrollmentId: string) => Promise<void>;
+  toggleBankType: (id: string) => Promise<void>;
   importV1: (json: any, clearFirst: boolean) => Promise<void>;
   deleteAllData: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -111,9 +135,14 @@ export default function FinanceProvider({
   const [txs, setTxs] = useState<Tx[]>([]);
   const [flips, setFlips] = useState<Flip[]>([]);
   const [events, setEvents] = useState<Ev[]>([]);
+  const [banks, setBanks] = useState<BankAccount[]>([]);
+  const [rules, setRules] = useState<CategoryRule[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [prefill, setPrefill] = useState<AddPrefill | null>(null);
+  const [editTarget, setEditTarget] = useState<Tx | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSyncRan = useRef(false);
   const today = todayStr();
 
   /* Keep at least 8 weeks of recurring events materialized. */
@@ -165,11 +194,13 @@ export default function FinanceProvider({
   );
 
   const load = useCallback(async () => {
-    const [p, t, f, e] = await Promise.all([
+    const [p, t, f, e, b, r] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("transactions").select("*").eq("user_id", userId).order("date", { ascending: false }).order("created_at", { ascending: false }),
       supabase.from("flips").select("*").eq("user_id", userId).order("created_at"),
       supabase.from("events").select("*").eq("user_id", userId).order("date"),
+      supabase.from("bank_accounts").select("*").eq("user_id", userId).order("type"),
+      supabase.from("category_rules").select("*").eq("user_id", userId).order("priority"),
     ]);
     if (p.data) setProfile(normProfile(p.data));
     let evts = (e.data ?? []).map(normEv);
@@ -180,6 +211,8 @@ export default function FinanceProvider({
     setTxs((t.data ?? []).map(normTx));
     setFlips((f.data ?? []).map(normFlip));
     setEvents(evts);
+    setBanks((b.data ?? []).map(normBank));
+    setRules((r.data ?? []).map(normRule));
   }, [supabase, userId, ensureHorizon]);
 
   useEffect(() => {
@@ -193,7 +226,7 @@ export default function FinanceProvider({
       debounceRef.current = setTimeout(() => load(), 400);
     };
     const channel = supabase.channel("runway-db");
-    (["profiles", "transactions", "flips", "events"] as const).forEach((table) => {
+    (["profiles", "transactions", "flips", "events", "bank_accounts"] as const).forEach((table) => {
       channel.on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table, filter: `user_id=eq.${userId}` } as any,
@@ -206,6 +239,35 @@ export default function FinanceProvider({
     };
   }, [supabase, userId, load]);
 
+  const syncNow = useCallback(async () => {
+    if (syncing) return null;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/simplefin/sync", { method: "POST" });
+      const json = await res.json().catch(() => null);
+      await load();
+      return res.ok ? json : null;
+    } catch {
+      return null;
+    } finally {
+      setSyncing(false);
+    }
+  }, [syncing, load]);
+
+  /* Auto-sync on open when bank data is >6h stale (free-tier substitute for a 6h cron). */
+  useEffect(() => {
+    if (autoSyncRan.current || banks.length === 0) return;
+    const stale = banks.some(
+      (b) => !b.last_synced_at || Date.now() - new Date(b.last_synced_at).getTime() > 6 * 3600 * 1000
+    );
+    if (stale) {
+      autoSyncRan.current = true;
+      syncNow();
+    } else {
+      autoSyncRan.current = true;
+    }
+  }, [banks, syncNow]);
+
   const derived = useMemo(
     () => (profile ? computeDerived(profile, txs, flips, events, today) : null),
     [profile, txs, flips, events, today]
@@ -215,11 +277,30 @@ export default function FinanceProvider({
     [profile, txs, derived, today]
   );
 
+  const checkingCash = useMemo(() => {
+    const checking = banks.filter((b) => b.type === "checking" && b.last_balance != null);
+    if (!checking.length) return null;
+    return checking.reduce((s, b) => s + (b.last_balance ?? 0), 0);
+  }, [banks]);
+  const savingsCash = useMemo(
+    () => banks.filter((b) => b.type === "savings").reduce((s, b) => s + (b.last_balance ?? 0), 0),
+    [banks]
+  );
+  const lastSyncedAt = useMemo(() => {
+    const times = banks.map((b) => b.last_synced_at).filter(Boolean) as string[];
+    return times.length ? times.sort().reverse()[0] : null;
+  }, [banks]);
+
   /* ---------- mutations ---------- */
   const openAdd = (p?: AddPrefill) => {
     buzz();
     setPrefill(p ?? null);
     setAddOpen(true);
+  };
+
+  const openTxEdit = (tx: Tx) => {
+    buzz();
+    setEditTarget(tx);
   };
 
   const handleQuickAdd = async (p: QuickAddPayload) => {
@@ -284,14 +365,45 @@ export default function FinanceProvider({
   const deleteTx = async (id: string) => {
     const tx = txs.find((t) => t.id === id);
     await supabase.from("transactions").delete().eq("id", id);
-    // Reset any event that pointed at this transaction
     const evt = events.find((e) => e.tx_id === id);
     if (evt) await supabase.from("events").update({ status: "pending", tx_id: null }).eq("id", evt.id);
-    // Roll a paid-out flip back to sold (payout pending again)
     if (tx?.type === "flip-sell" && tx.flip_id) {
       await supabase.from("flips").update({ status: "sold" }).eq("id", tx.flip_id);
     }
     await load();
+  };
+
+  const updateTx = async (id: string, patch: Partial<Tx>) => {
+    await supabase.from("transactions").update(patch).eq("id", id);
+    await load();
+  };
+
+  const linkTxToFlip = async (tx: Tx, flipId: string | "new") => {
+    let targetFlipId = flipId;
+    if (flipId === "new") {
+      const { data: flip } = await supabase
+        .from("flips")
+        .insert({
+          user_id: userId,
+          name: (tx.note ?? "Imported purchase").slice(0, 60),
+          qty: 1,
+          buy_price: tx.amount,
+          buy_date: tx.date,
+          status: "owned",
+          prepaid: false,
+          note: "Created from bank transaction",
+        })
+        .select()
+        .single();
+      if (!flip) return;
+      targetFlipId = flip.id;
+    }
+    await supabase
+      .from("transactions")
+      .update({ type: "flip-buy", category: "Flip buy", flip_id: targetFlipId })
+      .eq("id", tx.id);
+    await load();
+    buzz();
   };
 
   const updateProfile = async (patch: Partial<Profile>) => {
@@ -342,11 +454,8 @@ export default function FinanceProvider({
       })
       .select()
       .single();
-    await supabase
-      .from("events")
-      .update({ status: "actual", tx_id: tx?.id ?? null })
-      .eq("id", evId);
-    await load(); // ensureHorizon inside load() spawns the next recurring occurrence
+    await supabase.from("events").update({ status: "actual", tx_id: tx?.id ?? null }).eq("id", evId);
+    await load();
     buzz();
   };
 
@@ -411,6 +520,31 @@ export default function FinanceProvider({
     });
     await load();
     buzz(30);
+  };
+
+  const addRule = async (r: Omit<CategoryRule, "id" | "user_id">) => {
+    await supabase.from("category_rules").insert({ ...r, user_id: userId });
+    await load();
+  };
+
+  const deleteRule = async (id: string) => {
+    await supabase.from("category_rules").delete().eq("id", id);
+    await load();
+  };
+
+  const disconnectEnrollment = async (enrollmentId: string) => {
+    await supabase.from("bank_accounts").delete().eq("teller_enrollment_id", enrollmentId);
+    await load();
+  };
+
+  const toggleBankType = async (id: string) => {
+    const b = banks.find((x) => x.id === id);
+    if (!b) return;
+    await supabase
+      .from("bank_accounts")
+      .update({ type: b.type === "checking" ? "savings" : "checking" })
+      .eq("id", id);
+    await load();
   };
 
   const importV1 = async (json: any, clearFirst: boolean) => {
@@ -485,6 +619,8 @@ export default function FinanceProvider({
       supabase.from("flips").delete().eq("user_id", userId),
       supabase.from("events").delete().eq("user_id", userId),
       supabase.from("push_subscriptions").delete().eq("user_id", userId),
+      supabase.from("bank_accounts").delete().eq("user_id", userId),
+      supabase.from("category_rules").delete().eq("user_id", userId),
     ]);
     await supabase.from("profiles").delete().eq("user_id", userId);
     window.location.href = "/onboarding";
@@ -512,11 +648,19 @@ export default function FinanceProvider({
         txs,
         flips,
         events,
+        banks,
+        rules,
         derived,
         chart,
+        checkingCash,
+        savingsCash,
+        lastSyncedAt,
+        syncing,
         refresh: load,
         openAdd,
+        openTxEdit,
         deleteTx,
+        updateTx,
         updateProfile,
         updateFlip,
         deleteFlip,
@@ -528,6 +672,11 @@ export default function FinanceProvider({
         updateSeries,
         stopSeries,
         ringPurchase,
+        addRule,
+        deleteRule,
+        syncNow,
+        disconnectEnrollment,
+        toggleBankType,
         importV1,
         deleteAllData,
         signOut,
@@ -543,6 +692,16 @@ export default function FinanceProvider({
             setPrefill(null);
           }}
           onSubmit={handleQuickAdd}
+        />
+      )}
+      {editTarget && (
+        <TxEditSheet
+          tx={editTarget}
+          flips={flips}
+          onClose={() => setEditTarget(null)}
+          onSave={(patch) => updateTx(editTarget.id, patch)}
+          onLinkFlip={(flipId) => linkTxToFlip(editTarget, flipId)}
+          onDelete={() => deleteTx(editTarget.id)}
         />
       )}
     </Ctx.Provider>

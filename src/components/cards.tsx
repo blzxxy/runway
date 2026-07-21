@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Clock, Gem, Shield, Trash2, Wallet, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, Gem, Landmark, RefreshCw, Shield, Wallet, X } from "lucide-react";
 import { useFinance } from "./finance-provider";
 import { daysUntil, fmt, fmtDate, todayStr } from "@/lib/finance";
 
@@ -28,7 +28,7 @@ export function Bar({
 }
 
 export function CashCard() {
-  const { derived, profile } = useFinance();
+  const { derived, profile, checkingCash, savingsCash, lastSyncedAt, syncing, syncNow, updateProfile } = useFinance();
   const { cash, nextPay, schoolPaid, schoolItem } = derived;
   const schoolDays = profile.school_due_date ? daysUntil(profile.school_due_date) : null;
   const schoolBal = schoolItem?.balAfter ?? null;
@@ -40,14 +40,58 @@ export function CashCard() {
     ? "bg-yellow-900 text-yellow-300"
     : "bg-red-900 text-red-300";
 
+  const bankVerified = checkingCash != null;
+  const headline = bankVerified ? checkingCash : cash;
+  const mismatch = bankVerified ? Math.round((checkingCash - cash) * 100) / 100 : 0;
+  const hasMismatch = bankVerified && Math.abs(mismatch) > 10;
+  const syncedAgo = lastSyncedAt
+    ? Math.max(0, Math.round((Date.now() - new Date(lastSyncedAt).getTime()) / 3600000))
+    : null;
+
   return (
     <div className="bg-zinc-900 rounded-3xl p-5">
-      <div className="flex items-center gap-2 text-zinc-400 text-sm">
-        <Wallet size={16} /> Current cash
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-zinc-400 text-sm">
+          <Wallet size={16} /> Current cash
+        </div>
+        {bankVerified && (
+          <button
+            onClick={() => syncNow()}
+            className="flex items-center gap-1 text-xs text-green-500"
+          >
+            <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "syncing…" : `bank verified · ${syncedAgo != null ? (syncedAgo === 0 ? "just now" : `${syncedAgo}h ago`) : "—"}`}
+          </button>
+        )}
       </div>
-      <div className={`text-5xl font-extrabold mt-1 ${cash >= 0 ? "text-zinc-50" : "text-red-400"}`}>
-        {fmt(cash)}
+      <div className={`text-5xl font-extrabold mt-1 ${headline >= 0 ? "text-zinc-50" : "text-red-400"}`}>
+        {fmt(headline)}
       </div>
+      {bankVerified && savingsCash > 0 && (
+        <p className="text-xs text-zinc-500 mt-1">
+          <Landmark size={10} className="inline mr-1" />
+          Savings account: {fmt(savingsCash)}
+        </p>
+      )}
+
+      {hasMismatch && (
+        <div className="mt-3 bg-yellow-950 border border-yellow-800 rounded-xl p-3 text-xs text-yellow-200">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            <div>
+              Bank shows {fmt(checkingCash)} but the app's running total is {fmt(cash)} ({mismatch > 0 ? "+" : ""}
+              {fmt(mismatch)} apart). Something wasn't logged, or a bank transaction hasn't imported yet.
+            </div>
+          </div>
+          <button
+            onClick={() => updateProfile({ starting_cash: profile.starting_cash + mismatch })}
+            className="mt-2 px-3 py-1.5 rounded-lg bg-yellow-800 text-yellow-100 font-semibold"
+          >
+            Recalibrate running total to match bank
+          </button>
+        </div>
+      )}
+
       <div className="flex gap-2 mt-4 flex-wrap">
         {nextPay && (
           <span className="px-3 py-1.5 rounded-full bg-green-900 text-green-300 text-sm font-semibold">
@@ -334,8 +378,8 @@ export function AllocatorCard() {
 }
 
 export function RecentList() {
-  const { txs, deleteTx } = useFinance();
-  const recent = txs.slice(0, 8);
+  const { txs, openTxEdit } = useFinance();
+  const recent = txs.slice(0, 10);
   const label = (t: (typeof txs)[number]) => {
     if (t.type === "savings") return `→ ${t.target === "ring" ? "Ring" : t.target === "emergency" ? "Emergency" : "House"}`;
     if (t.type === "ring-purchase") return `💎 ${t.note || "Diamond purchase"}`;
@@ -358,28 +402,39 @@ export function RecentList() {
                 : out
                 ? "text-red-400"
                 : "text-green-400";
+            const flagged = (t.note ?? "").includes("⚠");
             return (
-              <div key={t.id} className="flex items-center justify-between py-2.5">
+              <button
+                key={t.id}
+                onClick={() => openTxEdit(t)}
+                className="w-full flex items-center justify-between py-2.5 text-left"
+              >
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{label(t)}</div>
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-xs text-zinc-500 flex items-center gap-1.5">
                     {fmtDate(t.date)} · {t.category ?? t.type}
+                    {t.source === "teller" && (
+                      <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400" style={{ fontSize: 10 }}>
+                        bank
+                      </span>
+                    )}
+                    {flagged && (
+                      <span className="px-1.5 py-0.5 rounded bg-yellow-900 text-yellow-300" style={{ fontSize: 10 }}>
+                        review
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pl-2">
-                  <span className={`font-bold ${color}`}>
-                    {t.type === "ring-purchase" ? "-" : out ? "-" : "+"}
-                    {fmt(t.amount, true)}
-                  </span>
-                  <button onClick={() => deleteTx(t.id)} className="p-1.5 text-zinc-600">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
+                <span className={`font-bold pl-2 ${color}`}>
+                  {t.type === "ring-purchase" ? "-" : out ? "-" : "+"}
+                  {fmt(t.amount, true)}
+                </span>
+              </button>
             );
           })}
         </div>
       )}
+      <p className="text-xs text-zinc-600 mt-2">Tap any transaction to edit, recategorize, or link to a flip.</p>
     </div>
   );
 }
