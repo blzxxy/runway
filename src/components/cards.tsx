@@ -129,9 +129,15 @@ export function SafeToSpendCard() {
       <div className={`text-4xl font-extrabold mt-1 tabular ${tone.text}`}>{fmt(sts)}</div>
       <p className="text-xs text-zinc-500 mt-1">
         {sts > 0
-          ? "Spending this much still covers every bill, goal transfer, and weekly budget for the next 8 weeks."
+          ? "Your weekly gas + food budget stays fully reserved (this week and every week ahead), plus every bill and goal transfer for 8 weeks."
           : "Projections dip below $0 — check the Timeline before spending anything extra."}
       </p>
+      {derived.anchorGap > 0 && (
+        <p className="text-xs text-zinc-600 mt-1">
+          Anchored to your bank balance (running total is {fmt(derived.anchorGap)} higher — hit
+          Recalibrate on the cash card to sync them).
+        </p>
+      )}
     </div>
   );
 }

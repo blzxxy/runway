@@ -269,20 +269,21 @@ export default function FinanceProvider({
     }
   }, [banks, syncNow]);
 
+  const checkingCash = useMemo(() => {
+    const checking = banks.filter((b) => b.type === "checking" && b.last_balance != null);
+    if (!checking.length) return null;
+    return checking.reduce((s, b) => s + (b.last_balance ?? 0), 0);
+  }, [banks]);
+
   const derived = useMemo(
-    () => (profile ? computeDerived(profile, txs, flips, events, today) : null),
-    [profile, txs, flips, events, today]
+    () => (profile ? computeDerived(profile, txs, flips, events, today, checkingCash) : null),
+    [profile, txs, flips, events, today, checkingCash]
   );
   const chart = useMemo(
     () => (profile && derived ? buildChartSeries(profile, txs, derived, today) : []),
     [profile, txs, derived, today]
   );
 
-  const checkingCash = useMemo(() => {
-    const checking = banks.filter((b) => b.type === "checking" && b.last_balance != null);
-    if (!checking.length) return null;
-    return checking.reduce((s, b) => s + (b.last_balance ?? 0), 0);
-  }, [banks]);
   const savingsCash = useMemo(
     () => banks.filter((b) => b.type === "savings").reduce((s, b) => s + (b.last_balance ?? 0), 0),
     [banks]

@@ -104,7 +104,8 @@ export function computeDerived(
   txs: Tx[],
   flips: Flip[],
   events: Ev[],
-  today = todayStr()
+  today = todayStr(),
+  bankCash: number | null = null
 ) {
   let cash = profile.starting_cash;
   const savings: Record<string, number> = { ring: 0, emergency: 0, house: 0 };
@@ -137,24 +138,31 @@ export function computeDerived(
   const horizon = addDays(today, 56);
   const pending = events.filter((e) => e.status === "pending" && e.date <= horizon);
 
+  // Reserve gas+food budget conservatively: the rest of THIS week's budget is
+  // set aside immediately, and each future week's budget on its Monday — so
+  // early-week days right before a payday are never left uncovered.
   const drains: ProjItem[] = [];
-  let sunday = addDays(today, (7 - fromYMD(today).getDay()) % 7);
-  let first = true;
-  while (sunday <= horizon) {
-    const amount = first
-      ? -Math.max(0, profile.weekly_budget - weekSpent)
-      : -profile.weekly_budget;
-    if (amount !== 0)
-      drains.push({
-        id: "wk-" + sunday,
-        date: sunday,
-        label: "Est. gas + eating out",
-        amount,
-        dynamic: true,
-        balAfter: 0,
-      });
-    first = false;
-    sunday = addDays(sunday, 7);
+  const remainingThisWeek = Math.max(0, profile.weekly_budget - weekSpent);
+  if (remainingThisWeek > 0)
+    drains.push({
+      id: "wk-now",
+      date: today,
+      label: "Gas + food budget (rest of this week)",
+      amount: -remainingThisWeek,
+      dynamic: true,
+      balAfter: 0,
+    });
+  let monday = addDays(weekStartOf(today), 7);
+  while (monday <= horizon) {
+    drains.push({
+      id: "wk-" + monday,
+      date: monday,
+      label: `Gas + food budget (week of ${fmtDate(monday)})`,
+      amount: -profile.weekly_budget,
+      dynamic: true,
+      balAfter: 0,
+    });
+    monday = addDays(monday, 7);
   }
 
   const payoutItems: ProjItem[] = pendingFlips.map((f) => ({
@@ -203,9 +211,10 @@ export function computeDerived(
     .reduce((s, f) => s + (f.payout ?? 0) - f.buy_price * f.qty, 0);
 
   const minBal = items.length ? Math.min(...items.map((i) => i.balAfter)) : cash;
-  // What you can spend today with every upcoming bill, goal transfer, and the
-  // weekly budget still covered for the whole 8-week horizon.
-  const safeToSpend = Math.max(0, Math.floor(minBal));
+  // Safe-to-spend anchors on whichever is LOWER: the running total or the real
+  // bank balance. anchorGap is how much the running total exceeds the bank.
+  const anchorGap = bankCash != null ? Math.max(0, cash - bankCash) : 0;
+  const safeToSpend = Math.max(0, Math.floor(minBal - anchorGap));
 
   return {
     cash,
@@ -228,6 +237,7 @@ export function computeDerived(
     flipsInvested,
     flipsProfit,
     safeToSpend,
+    anchorGap,
   };
 }
 export type Derived = ReturnType<typeof computeDerived>;
