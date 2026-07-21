@@ -22,6 +22,8 @@ export interface Profile {
   notify_ring: boolean;
   notify_teller: boolean;
   ring_milestone_notified: boolean;
+  milestones_reached: string[];
+  best_streak: number;
   onboarded: boolean;
 }
 

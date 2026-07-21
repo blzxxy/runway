@@ -61,12 +61,12 @@ export default function SimpleFinConnect({
         onClick={connect}
         disabled={!token.trim() || busy}
         className={`w-full py-3 rounded-2xl font-bold ${
-          token.trim() && !busy ? "bg-green-600 text-white" : "bg-zinc-800 text-zinc-600"
+          token.trim() && !busy ? "bg-emerald-600 text-white" : "bg-zinc-800 text-zinc-600"
         }`}
       >
         {busy ? "Claiming token & importing…" : "3 · Connect bank"}
       </button>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-rose-400">{error}</p>}
     </div>
   );
 }

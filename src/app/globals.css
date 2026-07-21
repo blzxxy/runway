@@ -26,3 +26,76 @@ body {
 .page-in { animation: fadeUp 0.25s ease-out; }
 
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* ---------- Phase 2 visual language ---------- */
+body {
+  background-color: #000;
+  background-image: radial-gradient(ellipse 120% 90% at 50% 25%, #0a0a0f 0%, #000000 75%);
+  background-attachment: fixed;
+}
+
+.card-glass {
+  background: rgba(24, 24, 27, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(39, 39, 42, 0.5);
+}
+
+.money {
+  font-family: var(--font-money), Georgia, serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Phase 3: animated aurora background ---------- */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora-blob {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.13;
+  will-change: transform;
+}
+.aurora-amber {
+  background: #f59e0b;
+  top: -22vmax;
+  left: -15vmax;
+  animation: drift1 26s ease-in-out infinite alternate;
+}
+.aurora-violet {
+  background: #8b5cf6;
+  top: 30%;
+  right: -28vmax;
+  animation: drift2 32s ease-in-out infinite alternate;
+}
+.aurora-emerald {
+  background: #10b981;
+  bottom: -28vmax;
+  left: 5%;
+  opacity: 0.1;
+  animation: drift3 38s ease-in-out infinite alternate;
+}
+@keyframes drift1 {
+  to { transform: translate(14vmax, 9vmax) scale(1.15); }
+}
+@keyframes drift2 {
+  to { transform: translate(-11vmax, -7vmax) scale(1.1); }
+}
+@keyframes drift3 {
+  to { transform: translate(9vmax, -11vmax) scale(1.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob { animation: none; }
+}
+
+/* tactile buttons */
+button { transition: transform 0.1s ease; }
+button:active { transform: scale(0.96); }

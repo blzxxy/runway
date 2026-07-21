@@ -31,7 +31,7 @@ const inputCls =
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5">
+    <div className="card-glass rounded-3xl p-5">
       <div className="text-sm font-semibold text-zinc-300 mb-3">{title}</div>
       {children}
     </div>
@@ -244,7 +244,7 @@ export default function SettingsPage() {
       <button
         onClick={saveProfile}
         disabled={busy}
-        className="w-full py-3.5 rounded-2xl bg-green-600 text-white font-bold"
+        className="w-full py-3.5 rounded-2xl bg-emerald-600 text-white font-bold"
       >
         {busy ? "Saving…" : saved ? "Saved ✓" : "Save changes"}
       </button>
@@ -264,7 +264,7 @@ export default function SettingsPage() {
                     {s.count} scheduled
                   </div>
                 </div>
-                <div className={`font-bold text-sm ${s.sample.amount >= 0 ? "text-green-400" : "text-red-400"}`}>
+                <div className={`font-bold text-sm ${s.sample.amount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                   {s.sample.amount >= 0 ? "+" : ""}
                   {fmt(s.sample.amount)}
                 </div>
@@ -286,7 +286,7 @@ export default function SettingsPage() {
                     if (window.confirm(`Stop "${s.sample.label}"? All upcoming occurrences will be removed.`))
                       await stopSeries(s.root);
                   }}
-                  className="flex-1 py-1.5 rounded-lg bg-red-950 text-red-300 text-xs font-semibold"
+                  className="flex-1 py-1.5 rounded-lg bg-rose-950 text-rose-300 text-xs font-semibold"
                 >
                   Stop recurring
                 </button>
@@ -339,9 +339,9 @@ export default function SettingsPage() {
                   <div className="text-xs text-zinc-500">
                     <button onClick={() => fin.toggleBankType(b.id)} className="underline decoration-dotted">{b.type}</button> · {b.last_balance != null ? fmt(b.last_balance) : "—"} ·{" "}
                     {b.last_synced_at ? "synced " + fmtDate(b.last_synced_at.slice(0, 10)) : "never synced"}
-                    {b.needs_reauth && <span className="text-red-400"> · needs reconnect</span>}
+                    {b.needs_reauth && <span className="text-rose-400"> · needs reconnect</span>}
                   </div>
-                  {b.last_error && <div className="text-xs text-red-400 truncate">{b.last_error}</div>}
+                  {b.last_error && <div className="text-xs text-rose-400 truncate">{b.last_error}</div>}
                 </div>
               </div>
             ))}
@@ -356,7 +356,7 @@ export default function SettingsPage() {
                 setSyncMsg(r ? `Imported ${r.imported} new transaction${r.imported === 1 ? "" : "s"}${r.errors.length ? " · " + r.errors.join("; ") : ""}` : "Sync failed — try again.");
               }}
               disabled={syncing}
-              className="flex-1 py-2.5 rounded-xl bg-green-800 text-green-100 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-2.5 rounded-xl bg-emerald-800 text-emerald-100 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <RefreshCw size={13} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync now"}
             </button>
@@ -367,7 +367,7 @@ export default function SettingsPage() {
                   if (window.confirm("Disconnect this bank? Imported transactions stay; balances stop updating."))
                     disconnectEnrollment(en);
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-red-950 text-red-300 text-sm font-semibold"
+                className="flex-1 py-2.5 rounded-xl bg-rose-950 text-rose-300 text-sm font-semibold"
               >
                 Disconnect
               </button>
@@ -450,7 +450,7 @@ export default function SettingsPage() {
               Disable
             </button>
           ) : (
-            <button onClick={enablePush} className="px-3 py-1.5 rounded-lg bg-green-700 text-white text-xs font-semibold">
+            <button onClick={enablePush} className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold">
               Enable
             </button>
           )}
@@ -464,7 +464,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={profile[t.key]}
                 onChange={(e) => updateProfile({ [t.key]: e.target.checked } as any)}
-                className="h-5 w-5 accent-green-600"
+                className="h-5 w-5 accent-emerald-600"
               />
             </label>
           ))}
@@ -482,7 +482,7 @@ export default function SettingsPage() {
           <div className="text-xs text-zinc-400 mb-2">Import from v1 artifact JSON</div>
           <label className="flex items-center gap-2 text-xs text-zinc-400 mb-2">
             <input type="checkbox" checked={clearFirst} onChange={(e) => setClearFirst(e.target.checked)}
-              className="h-4 w-4 accent-green-600" />
+              className="h-4 w-4 accent-emerald-600" />
             Clear existing transactions/flips/events first (avoids duplicates)
           </label>
           <input
@@ -510,13 +510,13 @@ export default function SettingsPage() {
         </button>
       </Card>
 
-      <div className="bg-zinc-900 rounded-3xl p-5 border border-red-900">
-        <div className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
+      <div className="card-glass rounded-3xl p-5 border border-rose-900">
+        <div className="text-sm font-semibold text-rose-400 mb-2 flex items-center gap-2">
           <Trash2 size={14} /> Danger zone
         </div>
         <p className="text-xs text-zinc-500 mb-3">
           Permanently deletes every transaction, flip, event, and your profile. Type{" "}
-          <b className="text-red-400">DELETE</b> to confirm.
+          <b className="text-rose-400">DELETE</b> to confirm.
         </p>
         <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="DELETE"
           className={inputCls + " mb-3"} />
@@ -528,7 +528,7 @@ export default function SettingsPage() {
           }}
           className={`w-full py-2.5 rounded-xl text-sm font-bold ${
             confirmText === "DELETE" && !deleting
-              ? "bg-red-700 text-white"
+              ? "bg-rose-700 text-white"
               : "bg-zinc-800 text-zinc-600"
           }`}
         >

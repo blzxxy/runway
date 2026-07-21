@@ -131,6 +131,29 @@ export function computeDerived(
   const dayIdx = ((fromYMD(today).getDay() + 6) % 7) + 1;
   const pace = (weekSpent / dayIdx) * 7;
 
+  // Budget streak: consecutive days (ending today) where the running weekly
+  // gas+food total never exceeded the budget. Bounded by first transaction.
+  let streak = 0;
+  if (txs.length) {
+    const firstDate = txs.reduce((min, t) => (t.date < min ? t.date : min), today);
+    for (let i = 0; i < 366; i++) {
+      const day = addDays(today, -i);
+      if (day < firstDate) break;
+      const wsDay = weekStartOf(day);
+      const spent = txs
+        .filter(
+          (t) =>
+            t.type === "expense" &&
+            (t.category === "Gas" || t.category === "Eating out") &&
+            t.date >= wsDay &&
+            t.date <= day
+        )
+        .reduce((s, t) => s + t.amount, 0);
+      if (spent > profile.weekly_budget) break;
+      streak++;
+    }
+  }
+
   const pendingFlips = flips.filter((f) => f.status === "sold");
   const pendingPayoutTotal = pendingFlips.reduce((s, f) => s + (f.payout ?? 0), 0);
 
@@ -238,6 +261,7 @@ export function computeDerived(
     flipsProfit,
     safeToSpend,
     anchorGap,
+    streak,
   };
 }
 export type Derived = ReturnType<typeof computeDerived>;

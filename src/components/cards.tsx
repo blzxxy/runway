@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { AnimatedMoney } from "./fx";
 import { AlertTriangle, Check, Clock, Fuel, Gauge, Gem, Landmark, RefreshCw, Shield, Undo2, UtensilsCrossed, Wallet, X } from "lucide-react";
 import { useFinance } from "./finance-provider";
 import { addDays, daysUntil, fmt, fmtDate, todayStr } from "@/lib/finance";
@@ -16,9 +18,11 @@ export function Bar({
 }) {
   return (
     <div className="relative h-3 w-full rounded-full bg-zinc-800">
-      <div
-        className={`bar-fill h-3 rounded-full ${colorClass}`}
-        style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+      <motion.div
+        className={`h-3 rounded-full ${colorClass}`}
+        initial={{ width: 0 }}
+        animate={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        transition={{ type: "spring", stiffness: 100, damping: 15 }}
       />
       {(markers ?? []).map((m, i) => (
         <div key={i} className="absolute top-0 h-3 w-0.5 bg-zinc-500" style={{ left: `${m}%` }} />
@@ -33,12 +37,12 @@ export function CashCard() {
   const schoolDays = profile.school_due_date ? daysUntil(profile.school_due_date) : null;
   const schoolBal = schoolItem?.balAfter ?? null;
   const schoolColor = schoolPaid
-    ? "bg-green-900 text-green-300"
+    ? "bg-emerald-900 text-emerald-300"
     : schoolBal == null || schoolBal >= 100
-    ? "bg-green-900 text-green-300"
+    ? "bg-emerald-900 text-emerald-300"
     : schoolBal >= 0
     ? "bg-yellow-900 text-yellow-300"
-    : "bg-red-900 text-red-300";
+    : "bg-rose-900 text-rose-300";
 
   const bankVerified = checkingCash != null;
   const headline = bankVerified ? checkingCash : cash;
@@ -49,7 +53,7 @@ export function CashCard() {
     : null;
 
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5">
+    <div className="card-glass rounded-3xl p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-zinc-400 text-sm">
           <Wallet size={16} /> Current cash
@@ -57,15 +61,15 @@ export function CashCard() {
         {bankVerified && (
           <button
             onClick={() => syncNow()}
-            className="flex items-center gap-1 text-xs text-green-500"
+            className="flex items-center gap-1 text-xs text-emerald-500"
           >
             <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
             {syncing ? "syncing…" : `bank verified · ${syncedAgo != null ? (syncedAgo === 0 ? "just now" : `${syncedAgo}h ago`) : "—"}`}
           </button>
         )}
       </div>
-      <div className={`text-5xl font-extrabold mt-1 ${headline >= 0 ? "text-zinc-50" : "text-red-400"}`}>
-        {fmt(headline)}
+      <div className={`text-5xl font-extrabold mt-1 money ${headline >= 0 ? "text-zinc-50" : "text-rose-400"}`}>
+        <AnimatedMoney value={headline} />
       </div>
       {bankVerified && savingsCash > 0 && (
         <p className="text-xs text-zinc-500 mt-1">
@@ -94,7 +98,7 @@ export function CashCard() {
 
       <div className="flex gap-2 mt-4 flex-wrap">
         {nextPay && (
-          <span className="px-3 py-1.5 rounded-full bg-green-900 text-green-300 text-sm font-semibold">
+          <span className="px-3 py-1.5 rounded-full bg-emerald-900 text-emerald-300 text-sm font-semibold">
             Payday in {daysUntil(nextPay.date)}d · {fmtDate(nextPay.date)} +{fmt(nextPay.amount)}
           </span>
         )}
@@ -117,16 +121,16 @@ export function SafeToSpendCard() {
   const sts = derived.safeToSpend;
   const tone =
     sts > 50
-      ? { text: "text-green-400", ring: "border-green-900" }
+      ? { text: "text-emerald-400", ring: "border-emerald-900" }
       : sts > 0
       ? { text: "text-yellow-400", ring: "border-yellow-900" }
-      : { text: "text-red-400", ring: "border-red-900" };
+      : { text: "text-rose-400", ring: "border-rose-900" };
   return (
-    <div className={`bg-zinc-900 rounded-3xl p-5 border ${tone.ring}`}>
+    <div className={`card-glass rounded-3xl p-5 border ${tone.ring}`}>
       <div className="flex items-center gap-2 text-zinc-400 text-sm">
         <Gauge size={16} /> Safe to spend today
       </div>
-      <div className={`text-4xl font-extrabold mt-1 tabular ${tone.text}`}>{fmt(sts)}</div>
+      <div className={`text-4xl font-extrabold mt-1 money ${tone.text}`}><AnimatedMoney value={sts} /></div>
       <p className="text-xs text-zinc-500 mt-1">
         {sts > 0
           ? "Your weekly gas + food budget stays fully reserved (this week and every week ahead), plus every bill and goal transfer for 8 weeks."
@@ -143,58 +147,37 @@ export function SafeToSpendCard() {
 }
 
 export function QuickLogCard() {
-  const { quickLog, deleteTx } = useFinance();
-  const [last, setLast] = useState<{ id: string; label: string } | null>(null);
+  const { quickLog } = useFinance();
   const [busy, setBusy] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const log = async (label: string, category: string, amount: number) => {
+  const log = async (category: string, amount: number) => {
     if (busy) return;
     setBusy(true);
-    const id = await quickLog(category, amount);
+    await quickLog(category, amount);
     setBusy(false);
-    if (id) {
-      setLast({ id, label: `${label} ${fmt(amount)}` });
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setLast(null), 6000);
-    }
   };
 
   return (
-    <div className="bg-zinc-900 rounded-3xl p-4">
+    <div className="card-glass rounded-3xl p-4">
       <div className="flex gap-2">
         <button
-          onClick={() => log("Gas", "Gas", 50)}
+          onClick={() => log("Gas", 50)}
           disabled={busy}
           className="flex-1 py-3 rounded-2xl bg-zinc-800 active:bg-zinc-700 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          <Fuel size={17} className="text-red-400" /> Gas $50
+          <Fuel size={17} className="text-rose-400" /> Gas $50
         </button>
         <button
-          onClick={() => log("Food", "Eating out", 30)}
+          onClick={() => log("Eating out", 30)}
           disabled={busy}
           className="flex-1 py-3 rounded-2xl bg-zinc-800 active:bg-zinc-700 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          <UtensilsCrossed size={17} className="text-red-400" /> Food $30
+          <UtensilsCrossed size={17} className="text-rose-400" /> Food $30
         </button>
       </div>
-      {last && (
-        <button
-          onClick={() => {
-            deleteTx(last.id);
-            setLast(null);
-          }}
-          className="w-full mt-2 py-1.5 text-xs text-zinc-400 flex items-center justify-center gap-1"
-        >
-          <Check size={12} className="text-green-500" /> Logged {last.label} ·{" "}
-          <span className="underline flex items-center gap-0.5">
-            <Undo2 size={11} /> undo
-          </span>
-        </button>
-      )}
       <p className="text-xs text-zinc-600 mt-2 text-center">
-        One tap logs it today. Edit the amount later if it differed — bank import will dedupe by hand
-        (delete one) if it also catches it.
+        One tap logs it today — undo lives in the toast. If bank import later catches the same
+        purchase, delete one copy.
       </p>
     </div>
   );
@@ -276,12 +259,12 @@ export function PendingPayoutsCard() {
   const { derived, payoutFlip } = useFinance();
   if (derived.pendingFlips.length === 0) return null;
   return (
-    <div className="bg-zinc-900 border border-purple-900 rounded-3xl p-5">
+    <div className="bg-zinc-900 border border-violet-900 rounded-3xl p-5">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-purple-300 text-sm font-semibold">
+        <div className="flex items-center gap-2 text-violet-300 text-sm font-semibold">
           <Clock size={16} /> Pending payouts
         </div>
-        <span className="font-bold text-purple-200">
+        <span className="font-bold text-violet-200 money">
           {fmt(derived.pendingPayoutTotal, true)} · {derived.pendingFlips.length}{" "}
           {derived.pendingFlips.length === 1 ? "item" : "items"}
         </span>
@@ -296,10 +279,10 @@ export function PendingPayoutsCard() {
               </div>
             </div>
             <div className="flex items-center gap-2 pl-2">
-              <span className="font-semibold text-purple-300">{fmt(f.payout ?? 0, true)}</span>
+              <span className="font-semibold text-violet-300">{fmt(f.payout ?? 0, true)}</span>
               <button
                 onClick={() => payoutFlip(f.id)}
-                className="px-2.5 py-1.5 rounded-lg bg-purple-800 text-purple-100 text-xs font-semibold"
+                className="px-2.5 py-1.5 rounded-lg bg-violet-800 text-violet-100 text-xs font-semibold"
               >
                 Paid out
               </button>
@@ -317,13 +300,13 @@ export function RingCard() {
   const diamondPct = (profile.ring_diamond_cost / total) * 100;
   const pct = (derived.ringRaised / total) * 100;
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5 border border-amber-900">
+    <div className="card-glass rounded-3xl p-5 border border-amber-900 shadow-[0_0_40px_rgba(245,158,11,0.15)]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-amber-400 text-sm font-semibold">
           <Gem size={16} /> Ring fund
         </div>
         <span className="text-sm text-zinc-400">
-          <b className="text-amber-300 text-lg">{fmt(derived.ringRaised)}</b> / {fmt(total)}
+          <b className="text-amber-300 text-lg money">{fmt(derived.ringRaised)}</b> / {fmt(total)}
         </span>
       </div>
       <div className="mt-3">
@@ -377,18 +360,18 @@ function RingEta() {
 export function EmergencyCard() {
   const { derived, profile } = useFinance();
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5">
+    <div className="card-glass rounded-3xl p-5 shadow-[0_0_40px_rgba(56,189,248,0.10)]">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-blue-400 text-sm font-semibold">
+        <div className="flex items-center gap-2 text-sky-400 text-sm font-semibold">
           <Shield size={16} /> Emergency buffer
         </div>
         <span className="text-sm text-zinc-400">
-          <b className="text-blue-300 text-lg">{fmt(derived.savings.emergency)}</b> /{" "}
+          <b className="text-sky-300 text-lg money">{fmt(derived.savings.emergency)}</b> /{" "}
           {fmt(profile.emergency_target)}
         </span>
       </div>
       <div className="mt-3">
-        <Bar pct={(derived.savings.emergency / profile.emergency_target) * 100} colorClass="bg-blue-500" />
+        <Bar pct={(derived.savings.emergency / profile.emergency_target) * 100} colorClass="bg-sky-500" />
       </div>
       {derived.savings.house > 0 && (
         <p className="text-xs text-zinc-500 mt-2">House fund: {fmt(derived.savings.house)}</p>
@@ -402,11 +385,11 @@ export function WeeklyCard() {
   const { weekSpent, pace } = derived;
   const budget = profile.weekly_budget;
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5">
+    <div className="card-glass rounded-3xl p-5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-zinc-300">This week · gas + eating out</span>
         <span className="text-sm">
-          <b className={`text-lg ${weekSpent > budget ? "text-red-400" : "text-zinc-100"}`}>
+          <b className={`text-lg money ${weekSpent > budget ? "text-rose-400" : "text-zinc-100"}`}>
             {fmt(weekSpent)}
           </b>
           <span className="text-zinc-500"> / {fmt(budget)}</span>
@@ -415,11 +398,11 @@ export function WeeklyCard() {
       <div className="mt-3">
         <Bar
           pct={(weekSpent / budget) * 100}
-          colorClass={weekSpent > budget ? "bg-red-500" : pace > budget ? "bg-yellow-500" : "bg-green-500"}
+          colorClass={weekSpent > budget ? "bg-rose-500" : pace > budget ? "bg-yellow-500" : "bg-emerald-500"}
         />
       </div>
       {weekSpent > budget ? (
-        <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+        <p className="text-xs text-rose-400 mt-2 flex items-center gap-1">
           <AlertTriangle size={12} /> Over budget by {fmt(weekSpent - budget)}
         </p>
       ) : pace > budget ? (
@@ -442,7 +425,7 @@ export function AllocatorCard() {
   const total = profile.alloc_ring + profile.alloc_emergency + profile.alloc_flex;
 
   return (
-    <div className={`bg-zinc-900 rounded-3xl p-5 ${unlocked ? "" : "opacity-60"}`}>
+    <div className={`card-glass rounded-3xl p-5 ${unlocked ? "" : "opacity-60"}`}>
       <div className="text-sm font-semibold text-zinc-300">
         Paycheck allocator{unlocked ? "" : " · unlocks after school is paid"}
       </div>
@@ -453,7 +436,7 @@ export function AllocatorCard() {
             <span>{fmt(profile.alloc_ring)}/mo</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-blue-300">
+            <span className="text-sky-300">
               Emergency{derived.savings.emergency >= profile.emergency_target ? " (full ✓)" : ""}
             </span>
             <span>{fmt(profile.alloc_emergency)}/mo</span>
@@ -483,7 +466,7 @@ export function AllocatorCard() {
                   amount: Math.round(profile.alloc_emergency / 4),
                 })
               }
-              className="flex-1 py-2 rounded-xl bg-blue-900 text-blue-200 text-sm font-semibold"
+              className="flex-1 py-2 rounded-xl bg-sky-900 text-sky-200 text-sm font-semibold"
             >
               + Buffer {fmt(Math.round(profile.alloc_emergency / 4))}
             </button>
@@ -503,7 +486,7 @@ export function RecentList() {
     return t.note || t.category || t.type;
   };
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5">
+    <div className="card-glass rounded-3xl p-5">
       <div className="text-sm font-semibold text-zinc-300 mb-2">Recent</div>
       {recent.length === 0 ? (
         <p className="text-sm text-zinc-500">No transactions yet. Hit the big + button.</p>
@@ -513,12 +496,12 @@ export function RecentList() {
             const out = t.type === "expense" || t.type === "flip-buy" || t.type === "savings";
             const color =
               t.type === "savings"
-                ? "text-blue-400"
+                ? "text-sky-400"
                 : t.type === "ring-purchase"
                 ? "text-amber-400"
                 : out
-                ? "text-red-400"
-                : "text-green-400";
+                ? "text-rose-400"
+                : "text-emerald-400";
             const flagged = (t.note ?? "").includes("⚠");
             return (
               <button

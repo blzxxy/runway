@@ -19,15 +19,15 @@ export default function TimelinePage() {
     <div className="space-y-2 page-in">
       <h1 className="text-xl font-extrabold tracking-tight mb-2">Timeline</h1>
 
-      <div className="bg-zinc-900 rounded-2xl p-4 flex items-center justify-between">
+      <div className="card-glass rounded-2xl p-4 flex items-center justify-between">
         <span className="text-sm text-zinc-400">Lowest projected balance (8 wks)</span>
         <span
-          className={`font-bold text-lg ${
+          className={`font-bold text-lg money ${
             derived.minBal < 0
-              ? "text-red-400"
+              ? "text-rose-400"
               : derived.minBal < 100
               ? "text-yellow-400"
-              : "text-green-400"
+              : "text-emerald-400"
           }`}
         >
           {fmt(derived.minBal)}
@@ -39,7 +39,7 @@ export default function TimelinePage() {
           {actuals.map((e) => (
             <div key={e.id} className="flex items-center justify-between py-2 px-4 opacity-50">
               <div className="flex items-center gap-2 text-sm min-w-0">
-                <Check size={14} className="text-green-500 shrink-0" />
+                <Check size={14} className="text-emerald-500 shrink-0" />
                 <span className="line-through truncate">{e.label}</span>
                 <span className="text-xs text-zinc-500 shrink-0">{fmtDate(e.date)}</span>
               </div>
@@ -57,7 +57,7 @@ export default function TimelinePage() {
         return (
           <div
             key={it.id}
-            className={`bg-zinc-900 rounded-2xl px-4 py-3 ${it.dynamic ? "opacity-70" : ""}`}
+            className={`card-glass rounded-2xl px-4 py-3 ${it.dynamic ? "opacity-70" : ""}`}
           >
             <div
               className="flex items-center justify-between"
@@ -79,13 +79,13 @@ export default function TimelinePage() {
                 </div>
               </div>
               <div className="text-right pl-2">
-                <div className={`font-bold ${it.amount >= 0 ? "text-green-400" : "text-red-400"}`}>
+                <div className={`font-bold ${it.amount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                   {it.amount >= 0 ? "+" : ""}
                   {fmt(it.amount)}
                 </div>
                 <div
                   className={`text-xs ${
-                    it.balAfter < 0 ? "text-red-400 font-bold" : "text-zinc-500"
+                    it.balAfter < 0 ? "text-rose-400 font-bold" : "text-zinc-500"
                   }`}
                 >
                   bal {fmt(it.balAfter)}
@@ -111,7 +111,7 @@ export default function TimelinePage() {
                     setBusy(false);
                     setExpanded(null);
                   }}
-                  className="px-3 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold flex items-center gap-1"
+                  className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-sm font-semibold flex items-center gap-1"
                 >
                   <Check size={14} /> Actual
                 </button>

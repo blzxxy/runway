@@ -25,7 +25,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
+    <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="bg-amber-500 rounded-3xl p-4 mb-4">
@@ -36,8 +36,8 @@ export default function LoginPage() {
         </div>
 
         {sent ? (
-          <div className="bg-zinc-900 rounded-3xl p-6 text-center">
-            <Mail size={28} className="mx-auto text-green-400 mb-3" />
+          <div className="card-glass rounded-3xl p-6 text-center">
+            <Mail size={28} className="mx-auto text-emerald-400 mb-3" />
             <p className="font-semibold">Check your email</p>
             <p className="text-sm text-zinc-400 mt-1">
               We sent a magic link to <b>{email}</b>. Open it on this device to sign in.
@@ -50,7 +50,7 @@ export default function LoginPage() {
             </button>
           </div>
         ) : (
-          <div className="bg-zinc-900 rounded-3xl p-6">
+          <div className="card-glass rounded-3xl p-6">
             <label className="text-xs text-zinc-400">Email</label>
             <input
               type="email"
@@ -61,14 +61,14 @@ export default function LoginPage() {
               autoComplete="email"
               className="w-full mt-1 bg-zinc-800 rounded-xl px-4 py-3 outline-none border border-zinc-700 focus:border-zinc-500"
             />
-            {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+            {error && <p className="text-xs text-rose-400 mt-2">{error}</p>}
             <button
               onClick={send}
               disabled={busy || !email.includes("@")}
               className={`w-full py-3.5 rounded-2xl font-bold mt-4 ${
                 busy || !email.includes("@")
                   ? "bg-zinc-800 text-zinc-600"
-                  : "bg-green-600 text-white active:bg-green-700"
+                  : "bg-emerald-600 text-white active:bg-emerald-700"
               }`}
             >
               {busy ? "Sending…" : "Send magic link"}

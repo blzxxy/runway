@@ -10,12 +10,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
+import Celebration, { type CelebrationSpec } from "./celebration";
 import {
   addDays,
   buildChartSeries,
   buzz,
   computeDerived,
+  fmt,
   nextOccurrence,
   sellCalc,
   todayStr,
@@ -51,6 +54,8 @@ const normProfile = (p: any): Profile => ({
   ring_diamond_cost: num(p.ring_diamond_cost),
   ring_setting_cost: num(p.ring_setting_cost),
   emergency_target: num(p.emergency_target),
+  milestones_reached: Array.isArray(p.milestones_reached) ? p.milestones_reached : [],
+  best_streak: num(p.best_streak),
 });
 const normTx = (t: any): Tx => ({ ...t, amount: num(t.amount) });
 const normFlip = (f: any): Flip => ({
@@ -142,6 +147,9 @@ export default function FinanceProvider({
   const [prefill, setPrefill] = useState<AddPrefill | null>(null);
   const [editTarget, setEditTarget] = useState<Tx | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [celebration, setCelebration] = useState<CelebrationSpec | null>(null);
+  const celebrated = useRef<Set<string>>(new Set());
+  const bestStreakSaved = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoSyncRan = useRef(false);
   const today = todayStr();
@@ -247,6 +255,18 @@ export default function FinanceProvider({
       const res = await fetch("/api/simplefin/sync", { method: "POST" });
       const json = await res.json().catch(() => null);
       await load();
+      if (res.ok && json) {
+        if (json.imported > 0) {
+          toast.success(
+            `Imported ${json.imported} transaction${json.imported === 1 ? "" : "s"}${
+              json.matched ? ` · ${json.matched} matched to timeline` : ""
+            }`
+          );
+        }
+        if (json.errors?.length) toast.error(String(json.errors[0]), { duration: 6000 });
+      } else if (!res.ok) {
+        toast.error(json?.error ?? "Bank sync failed", { duration: 6000 });
+      }
       return res.ok ? json : null;
     } catch {
       return null;
@@ -362,6 +382,7 @@ export default function FinanceProvider({
     setAddOpen(false);
     setPrefill(null);
     buzz();
+    toast.success(p.kind === "flip-sell" ? "Sale logged — payout pending" : "Saved ✓");
   };
 
   const quickLog = async (category: string, amount: number): Promise<string | null> => {
@@ -379,7 +400,27 @@ export default function FinanceProvider({
       .single();
     await load();
     buzz(20);
-    return data?.id ?? null;
+    const id: string | null = data?.id ?? null;
+    if (id) {
+      toast(
+        (t) => (
+          <span className="flex items-center gap-3 text-sm">
+            Logged {category} {fmt(amount)}
+            <button
+              className="font-bold underline"
+              onClick={() => {
+                deleteTx(id);
+                toast.dismiss(t.id);
+              }}
+            >
+              Undo
+            </button>
+          </span>
+        ),
+        { icon: "✅" }
+      );
+    }
+    return id;
   };
 
   const deleteTx = async (id: string) => {
@@ -456,6 +497,7 @@ export default function FinanceProvider({
     await supabase.from("flips").update({ status: "paid_out" }).eq("id", id);
     await load();
     buzz();
+    toast.success(`${fmt(f.payout, true)} payout added to cash`);
   };
 
   const markActual = async (evId: string, amountOverride?: number) => {
@@ -477,6 +519,7 @@ export default function FinanceProvider({
     await supabase.from("events").update({ status: "actual", tx_id: tx?.id ?? null }).eq("id", evId);
     await load();
     buzz();
+    toast.success(`${e.label} marked actual`);
   };
 
   const dismissEvent = async (evId: string) => {
@@ -540,6 +583,7 @@ export default function FinanceProvider({
     });
     await load();
     buzz(30);
+    toast.success("Diamond purchase logged 💎");
   };
 
   const addRule = async (r: Omit<CategoryRule, "id" | "user_id">) => {
@@ -651,9 +695,85 @@ export default function FinanceProvider({
     window.location.href = "/login";
   };
 
+  /* ---------- milestone celebrations ---------- */
+  useEffect(() => {
+    if (!profile || !derived || celebration) return;
+    const m = profile.milestones_reached ?? [];
+    const done = (k: string) => m.includes(k) || celebrated.current.has(k);
+    const total = profile.ring_diamond_cost + profile.ring_setting_cost;
+    let spec: CelebrationSpec | null = null;
+    if (!done("ring-diamond") && derived.ringRaised >= profile.ring_diamond_cost) {
+      spec = {
+        key: "ring-diamond",
+        title: "Diamond funded 💎",
+        subtitle: "Buy the loose stone before prices shift.",
+        cta: "Let's go",
+        colors: ["#f59e0b", "#fcd34d", "#fef3c7"],
+      };
+    } else if (!done("ring-complete") && derived.ringRaised >= total) {
+      spec = {
+        key: "ring-complete",
+        title: "RING COMPLETE 💍",
+        subtitle: "Every dollar of the ring is funded.",
+        colors: ["#f59e0b", "#fde68a", "#ffffff"],
+      };
+    } else if (!done("emergency-full") && derived.savings.emergency >= profile.emergency_target) {
+      spec = {
+        key: "emergency-full",
+        title: "Emergency fund secured 🛡",
+        subtitle: `${fmt(profile.emergency_target)} buffer in place.`,
+        colors: ["#38bdf8", "#7dd3fc", "#e0f2fe"],
+      };
+    } else if (!done("school-paid") && derived.schoolPaid) {
+      spec = {
+        key: "school-paid",
+        title: "SCHOOL PAID ✓",
+        subtitle: "The big one is off your plate. Allocator unlocked.",
+        colors: ["#34d399", "#6ee7b7", "#d1fae5"],
+      };
+    } else if (!done("first-payout")) {
+      const paid = flips.find((f) => f.status === "paid_out" && f.payout != null);
+      if (paid) {
+        spec = {
+          key: "first-payout",
+          title: "First flip paid out 📦",
+          subtitle: `${fmt(paid.payout ?? 0, true)} landed in your account.`,
+          colors: ["#a78bfa", "#c4b5fd", "#ede9fe"],
+        };
+      }
+    }
+    if (spec) setCelebration(spec);
+  }, [profile, derived, flips, celebration]);
+
+  const dismissCelebration = async () => {
+    if (!celebration || !profile) return;
+    celebrated.current.add(celebration.key);
+    const m = profile.milestones_reached ?? [];
+    const key = celebration.key;
+    setCelebration(null);
+    await supabase
+      .from("profiles")
+      .update({ milestones_reached: [...m, key] })
+      .eq("user_id", userId);
+    await load();
+  };
+
+  /* persist best budget streak */
+  useEffect(() => {
+    if (!profile || !derived || bestStreakSaved.current) return;
+    if (derived.streak > (profile.best_streak ?? 0)) {
+      bestStreakSaved.current = true;
+      supabase
+        .from("profiles")
+        .update({ best_streak: derived.streak })
+        .eq("user_id", userId)
+        .then(() => load());
+    }
+  }, [profile, derived, supabase, userId, load]);
+
   if (!profile || !derived) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-zinc-600 text-sm animate-pulse">Loading your money…</div>
       </div>
     );
@@ -715,6 +835,7 @@ export default function FinanceProvider({
           onSubmit={handleQuickAdd}
         />
       )}
+      {celebration && <Celebration spec={celebration} onDismiss={dismissCelebration} />}
       {editTarget && (
         <TxEditSheet
           tx={editTarget}

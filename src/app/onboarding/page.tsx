@@ -168,8 +168,8 @@ export default function OnboardingPage() {
             Runway tracks your <b className="text-zinc-200">cash balance</b>, projects it across
             every upcoming paycheck and bill, watches your{" "}
             <b className="text-amber-300">ring fund</b> and{" "}
-            <b className="text-blue-300">emergency buffer</b>, and handles the fee math on your{" "}
-            <b className="text-purple-300">card flips</b>. Everything syncs across your devices.
+            <b className="text-sky-300">emergency buffer</b>, and handles the fee math on your{" "}
+            <b className="text-violet-300">card flips</b>. Everything syncs across your devices.
           </p>
           <p className="text-xs text-zinc-600 text-center">
             Every step can be skipped — defaults match a sensible starting setup.
@@ -187,7 +187,7 @@ export default function OnboardingPage() {
             balance</b> instead of a running guess. Skip to stay fully manual.
           </p>
           {bankLinked ? (
-            <div className="bg-green-950 border border-green-800 rounded-xl p-3 text-sm text-green-200">
+            <div className="bg-emerald-950 border border-emerald-800 rounded-xl p-3 text-sm text-emerald-200">
               ✓ {bankLinked} connected — balances and transactions imported.
             </div>
           ) : (
@@ -229,7 +229,7 @@ export default function OnboardingPage() {
         <div>
           <label className="flex items-center gap-2 text-sm mb-3">
             <input type="checkbox" checked={includeSchool} onChange={(e) => setIncludeSchool(e.target.checked)}
-              className="h-5 w-5 accent-green-600" />
+              className="h-5 w-5 accent-emerald-600" />
             I have a school payment coming up
           </label>
           {includeSchool && (
@@ -264,7 +264,7 @@ export default function OnboardingPage() {
             <input value={settingCost} onChange={(e) => setSettingCost(e.target.value)} inputMode="decimal"
               className="w-full bg-transparent py-2.5 outline-none" />
           </div>
-          <label className="text-xs text-blue-400">Emergency buffer target</label>
+          <label className="text-xs text-sky-400">Emergency buffer target</label>
           <div className="flex items-center bg-zinc-800 rounded-xl border border-zinc-700 px-3 mt-1 mb-3">
             <span className="text-zinc-500 mr-1">$</span>
             <input value={emergencyTarget} onChange={(e) => setEmergencyTarget(e.target.value)} inputMode="decimal"
@@ -272,7 +272,7 @@ export default function OnboardingPage() {
           </div>
           <label className="flex items-center gap-2 text-sm text-zinc-400">
             <input type="checkbox" checked={includeFlips} onChange={(e) => setIncludeFlips(e.target.checked)}
-              className="h-5 w-5 accent-green-600" />
+              className="h-5 w-5 accent-emerald-600" />
             Pre-load my Pokémon TCG flips (ETBs + Prismatic SPC)
           </label>
         </div>
@@ -286,7 +286,7 @@ export default function OnboardingPage() {
             <div key={i} className="bg-zinc-800 rounded-2xl p-3">
               <label className="flex items-center gap-2 text-sm mb-2">
                 <input type="checkbox" checked={p.include} onChange={(e) => setPay(i, { include: e.target.checked })}
-                  className="h-5 w-5 accent-green-600" />
+                  className="h-5 w-5 accent-emerald-600" />
                 <input value={p.label} onChange={(e) => setPay(i, { label: e.target.value })}
                   className="flex-1 bg-transparent font-semibold outline-none" />
               </label>
@@ -371,7 +371,7 @@ export default function OnboardingPage() {
                 setPushMsg(e?.message ?? "Couldn't enable — you can retry in Settings.");
               }
             }}
-            className="w-full py-3 rounded-2xl bg-green-700 text-white font-bold flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-2xl bg-emerald-700 text-white font-bold flex items-center justify-center gap-2"
           >
             <Bell size={16} /> Enable notifications
           </button>
@@ -384,11 +384,11 @@ export default function OnboardingPage() {
   const last = step === steps.length - 1;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="min-h-screen text-zinc-100 flex flex-col">
       <div className="max-w-md mx-auto w-full px-6 pt-10 pb-8 flex-1 flex flex-col">
         <div className="flex gap-1.5 mb-8">
           {steps.map((_, i) => (
-            <div key={i} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-green-500" : "bg-zinc-800"}`} />
+            <div key={i} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-emerald-500" : "bg-zinc-800"}`} />
           ))}
         </div>
         <h1 className="text-2xl font-extrabold mb-4">{steps[step].title}</h1>
@@ -403,7 +403,7 @@ export default function OnboardingPage() {
           <button
             onClick={() => (last ? finish() : setStep(step + 1))}
             disabled={busy}
-            className="flex-1 py-3.5 rounded-2xl bg-green-600 text-white font-bold flex items-center justify-center gap-1"
+            className="flex-1 py-3.5 rounded-2xl bg-emerald-600 text-white font-bold flex items-center justify-center gap-1"
           >
             {busy ? "Setting up…" : last ? "Finish — open Runway" : "Next"}
             {!busy && !last && <ChevronRight size={18} />}

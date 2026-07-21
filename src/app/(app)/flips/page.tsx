@@ -7,10 +7,10 @@ import type { Flip, FlipStatus } from "@/lib/types";
 
 const STATUS_STYLE: Record<FlipStatus, string> = {
   planned: "bg-zinc-700 text-zinc-300",
-  preordered: "bg-indigo-900 text-indigo-300",
-  owned: "bg-blue-900 text-blue-300",
+  preordered: "bg-cyan-900 text-cyan-300",
+  owned: "bg-sky-900 text-sky-300",
   listed: "bg-amber-900 text-amber-300",
-  sold: "bg-purple-900 text-purple-300",
+  sold: "bg-violet-900 text-violet-300",
   paid_out: "bg-emerald-800 text-emerald-200",
 };
 
@@ -40,16 +40,16 @@ export default function FlipsPage() {
     <div className="space-y-3 page-in">
       <h1 className="text-xl font-extrabold tracking-tight mb-1">Flips</h1>
 
-      <div className="bg-zinc-900 rounded-2xl p-4 grid grid-cols-3 gap-2 text-center">
+      <div className="card-glass rounded-2xl p-4 grid grid-cols-3 gap-2 text-center">
         <div>
           <div className="text-xs text-zinc-500">Invested</div>
-          <div className="font-bold text-lg">{fmt(derived.flipsInvested)}</div>
+          <div className="font-bold text-lg money">{fmt(derived.flipsInvested)}</div>
         </div>
         <div>
           <div className="text-xs text-zinc-500">Profit</div>
           <div
-            className={`font-bold text-lg ${
-              derived.flipsProfit >= 0 ? "text-green-400" : "text-red-400"
+            className={`font-bold text-lg money ${
+              derived.flipsProfit >= 0 ? "text-emerald-400" : "text-rose-400"
             }`}
           >
             {fmt(derived.flipsProfit, true)}
@@ -57,7 +57,7 @@ export default function FlipsPage() {
         </div>
         <div>
           <div className="text-xs text-zinc-500">ROI</div>
-          <div className="font-bold text-lg text-purple-300">
+          <div className="font-bold text-lg text-violet-300 money">
             {derived.flipsInvested > 0
               ? Math.round((derived.flipsProfit / derived.flipsInvested) * 100) + "%"
               : "—"}
@@ -72,7 +72,7 @@ export default function FlipsPage() {
           ? f.payout - cost
           : null;
         return (
-          <div key={f.id} className="bg-zinc-900 rounded-2xl p-4">
+          <div key={f.id} className="card-glass rounded-2xl p-4 shadow-[0_0_30px_rgba(167,139,250,0.08)]">
             <div className="flex items-center justify-between">
               <div className="font-semibold text-sm truncate pr-2">
                 {f.name} {f.qty > 1 && <span className="text-zinc-500">×{f.qty}</span>}
@@ -109,8 +109,8 @@ export default function FlipsPage() {
                   className={`text-sm font-bold ${
                     profit != null
                       ? profit >= 0
-                        ? "text-green-400"
-                        : "text-red-400"
+                        ? "text-emerald-400"
+                        : "text-rose-400"
                       : est
                       ? "text-zinc-300"
                       : "text-zinc-600"
@@ -122,14 +122,14 @@ export default function FlipsPage() {
             </div>
 
             {f.status === "sold" && (
-              <div className="mt-3 bg-purple-950 rounded-xl p-3 flex items-center justify-between">
-                <div className="text-xs text-purple-200">
+              <div className="mt-3 bg-violet-950 rounded-xl p-3 flex items-center justify-between">
+                <div className="text-xs text-violet-200">
                   Payout {fmt(f.payout ?? 0, true)} pending
                   {f.expected_payout_date ? ` · expected ${fmtDate(f.expected_payout_date)}` : ""}
                 </div>
                 <button
                   onClick={() => payoutFlip(f.id)}
-                  className="px-3 py-1.5 rounded-lg bg-purple-700 text-white text-xs font-bold"
+                  className="px-3 py-1.5 rounded-lg bg-violet-700 text-white text-xs font-bold"
                 >
                   Mark paid out
                 </button>
@@ -148,7 +148,7 @@ export default function FlipsPage() {
             {["owned", "listed", "preordered"].includes(f.status) && (
               <button
                 onClick={() => openAdd({ type: "flip-sell", flipId: f.id })}
-                className="w-full mt-3 py-2 rounded-xl bg-purple-800 text-purple-100 text-sm font-semibold"
+                className="w-full mt-3 py-2 rounded-xl bg-violet-800 text-violet-100 text-sm font-semibold"
               >
                 Sell this
               </button>

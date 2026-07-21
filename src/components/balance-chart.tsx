@@ -81,7 +81,7 @@ export default function BalanceChart() {
   );
 
   return (
-    <div className="bg-zinc-900 rounded-3xl p-5">
+    <div className="card-glass rounded-3xl p-5">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="text-sm font-semibold text-zinc-300">Balance · 30d back, 30d ahead</div>
       </div>
@@ -109,21 +109,21 @@ export default function BalanceChart() {
               tickFormatter={(v: number) => "$" + v}
               width={52}
             />
-            <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
+            <ReferenceLine y={0} stroke="#f43f5e" strokeDasharray="4 4" />
             <ReferenceLine y={100} stroke="#eab308" strokeDasharray="4 4" />
             {schoolLabel && (
               <ReferenceLine
                 x={schoolLabel}
-                stroke="#818cf8"
-                label={{ value: "School", fill: "#818cf8", fontSize: 10, position: "top" }}
+                stroke="#a78bfa"
+                label={{ value: "School", fill: "#a78bfa", fontSize: 10, position: "top" }}
               />
             )}
             <Tooltip content={<ChartTip />} />
-            <Line type="monotone" dataKey="actual" stroke="#22c55e" strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="actual" stroke="#34d399" strokeWidth={2} dot={false} isAnimationActive={false} />
             <Line
               type="monotone"
               dataKey="projected"
-              stroke="#22c55e"
+              stroke="#34d399"
               strokeOpacity={0.55}
               strokeWidth={2}
               strokeDasharray="5 4"

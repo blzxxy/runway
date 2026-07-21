@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Package, X } from "lucide-react";
 import { fmt } from "@/lib/finance";
 import type { Flip, Tx } from "@/lib/types";
@@ -60,7 +61,10 @@ export default function TxEditSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black bg-opacity-70" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-zinc-900 rounded-t-3xl p-5 safe-bottom" style={{ maxHeight: "92vh", overflowY: "auto" }}>
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 24 }} className="relative w-full max-w-md bg-zinc-900 rounded-t-3xl p-5 safe-bottom" style={{ maxHeight: "92vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-bold">Edit transaction</h2>
           <button onClick={onClose} className="p-2 rounded-full bg-zinc-800">
@@ -111,7 +115,7 @@ export default function TxEditSheet({
         {linkable && !linkOpen && (
           <button
             onClick={() => setLinkOpen(true)}
-            className="w-full py-2.5 rounded-xl bg-purple-950 text-purple-200 text-sm font-semibold flex items-center justify-center gap-2 mb-3"
+            className="w-full py-2.5 rounded-xl bg-violet-950 text-violet-200 text-sm font-semibold flex items-center justify-center gap-2 mb-3"
           >
             <Package size={14} /> This is flip inventory…
           </button>
@@ -138,7 +142,7 @@ export default function TxEditSheet({
                   setBusy(false);
                 }
               }}
-              className="w-full py-2.5 rounded-xl bg-purple-700 text-white text-sm font-bold"
+              className="w-full py-2.5 rounded-xl bg-violet-700 text-white text-sm font-bold"
             >
               {busy ? "Linking…" : "Move into flip tracker"}
             </button>
@@ -156,19 +160,19 @@ export default function TxEditSheet({
                 onClose();
               }
             }}
-            className="px-4 py-3 rounded-2xl bg-red-950 text-red-300 text-sm font-semibold"
+            className="px-4 py-3 rounded-2xl bg-rose-950 text-rose-300 text-sm font-semibold"
           >
             Delete
           </button>
           <button
             onClick={save}
             disabled={busy}
-            className="flex-1 py-3 rounded-2xl bg-green-600 text-white font-bold"
+            className="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-bold"
           >
             {busy ? "Saving…" : "Save changes"}
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

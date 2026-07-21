@@ -11,9 +11,9 @@ import { categorize, type RuleRow } from "./categorize";
 export async function syncUserBanks(
   db: SupabaseClient,
   userId: string
-): Promise<{ imported: number; errors: string[] }> {
+): Promise<{ imported: number; matched: number; errors: string[] }> {
   const { data: rows } = await db.from("bank_accounts").select("*").eq("user_id", userId);
-  if (!rows || rows.length === 0) return { imported: 0, errors: [] };
+  if (!rows || rows.length === 0) return { imported: 0, matched: 0, errors: [] };
 
   const [{ data: rules }, { data: events }] = await Promise.all([
     db.from("category_rules").select("*").eq("user_id", userId).order("priority"),
@@ -24,6 +24,7 @@ export async function syncUserBanks(
   );
 
   let imported = 0;
+  let matched = 0;
   const errors: string[] = [];
 
   // One Access URL usually covers every account; group rows that share a ciphertext
@@ -117,6 +118,7 @@ export async function syncUserBanks(
           if (match && ins) {
             await db.from("events").update({ status: "actual", tx_id: ins.id }).eq("id", match.id);
             (match as any).status = "actual";
+            matched++;
           }
         }
 
@@ -145,5 +147,5 @@ export async function syncUserBanks(
     }
   }
 
-  return { imported, errors };
+  return { imported, matched, errors };
 }

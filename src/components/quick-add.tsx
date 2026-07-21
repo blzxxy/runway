@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { addBusinessDays, fmt, sellCalc, todayStr } from "@/lib/finance";
 import type { AddPrefill, Flip, SavingsTarget } from "@/lib/types";
@@ -171,7 +172,10 @@ export default function QuickAddSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black bg-opacity-70" onClick={onClose} />
-      <div
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 24 }}
         className="relative w-full max-w-md bg-zinc-900 rounded-t-3xl p-5 overflow-y-auto safe-bottom"
         style={{ maxHeight: "92vh" }}
       >
@@ -183,15 +187,15 @@ export default function QuickAddSheet({
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-          <TypeChip label="Expense" active={type === "expense"} activeClass="bg-red-600 text-white"
+          <TypeChip label="Expense" active={type === "expense"} activeClass="bg-rose-600 text-white"
             onClick={() => { setType("expense"); setCategory("Gas"); }} />
-          <TypeChip label="Income" active={type === "income"} activeClass="bg-green-600 text-white"
+          <TypeChip label="Income" active={type === "income"} activeClass="bg-emerald-600 text-white"
             onClick={() => { setType("income"); setCategory("Preaching"); }} />
-          <TypeChip label="Flip Buy" active={type === "flip-buy"} activeClass="bg-purple-600 text-white"
+          <TypeChip label="Flip Buy" active={type === "flip-buy"} activeClass="bg-violet-600 text-white"
             onClick={() => setType("flip-buy")} />
-          <TypeChip label="Flip Sell" active={type === "flip-sell"} activeClass="bg-purple-600 text-white"
+          <TypeChip label="Flip Sell" active={type === "flip-sell"} activeClass="bg-violet-600 text-white"
             onClick={() => { setType("flip-sell"); setAmount(""); }} />
-          <TypeChip label="→ Savings" active={type === "savings"} activeClass="bg-blue-600 text-white"
+          <TypeChip label="→ Savings" active={type === "savings"} activeClass="bg-sky-600 text-white"
             onClick={() => setType("savings")} />
         </div>
 
@@ -278,11 +282,11 @@ export default function QuickAddSheet({
                   <span>Shipping</span><span>-{fmt(calc.ship, true)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-zinc-100 border-t border-zinc-700 mt-2 pt-2">
-                  <span>Payout (pending)</span><span className="text-purple-300">{fmt(calc.payout, true)}</span>
+                  <span>Payout (pending)</span><span className="text-violet-300">{fmt(calc.payout, true)}</span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
                   <span className="text-zinc-400">Profit vs cost ({fmt(flip.buy_price * flip.qty)})</span>
-                  <span className={calc.payout - flip.buy_price * flip.qty >= 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                  <span className={calc.payout - flip.buy_price * flip.qty >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
                     {fmt(calc.payout - flip.buy_price * flip.qty, true)}
                   </span>
                 </div>
@@ -333,7 +337,7 @@ export default function QuickAddSheet({
           onClick={save}
           disabled={!canSave || busy}
           className={`w-full py-4 rounded-2xl text-lg font-bold mt-2 ${
-            canSave && !busy ? "bg-green-600 text-white active:bg-green-700" : "bg-zinc-800 text-zinc-600"
+            canSave && !busy ? "bg-emerald-600 text-white active:bg-emerald-700" : "bg-zinc-800 text-zinc-600"
           }`}
         >
           {busy
@@ -342,7 +346,7 @@ export default function QuickAddSheet({
             ? `Confirm sale — ${fmt(calc.payout, true)} pending`
             : "Save"}
         </button>
-      </div>
+      </motion.div>
     </div>
   );
 }
