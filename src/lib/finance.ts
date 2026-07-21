@@ -54,6 +54,10 @@ export const fmt = (n: number, cents = false) => {
   return (neg ? "-$" : "$") + str;
 };
 
+/** Lowest sale price (each) that still breaks even after eBay fees + shipping. */
+export const breakEvenPrice = (costTotal: number, qty: number, shippingEach: number) =>
+  (costTotal / qty + FEE_FLAT + shippingEach) / (1 - FEE_PCT);
+
 export const sellCalc = (priceEach: number, qty: number, shippingEach: number) => {
   const gross = priceEach * qty;
   const fees = gross * FEE_PCT + FEE_FLAT * qty;
@@ -199,6 +203,9 @@ export function computeDerived(
     .reduce((s, f) => s + (f.payout ?? 0) - f.buy_price * f.qty, 0);
 
   const minBal = items.length ? Math.min(...items.map((i) => i.balAfter)) : cash;
+  // What you can spend today with every upcoming bill, goal transfer, and the
+  // weekly budget still covered for the whole 8-week horizon.
+  const safeToSpend = Math.max(0, Math.floor(minBal));
 
   return {
     cash,
@@ -220,6 +227,7 @@ export function computeDerived(
     pendingPayoutTotal,
     flipsInvested,
     flipsProfit,
+    safeToSpend,
   };
 }
 export type Derived = ReturnType<typeof computeDerived>;

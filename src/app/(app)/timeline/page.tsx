@@ -16,7 +16,7 @@ export default function TimelinePage() {
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 page-in">
       <h1 className="text-xl font-extrabold tracking-tight mb-2">Timeline</h1>
 
       <div className="bg-zinc-900 rounded-2xl p-4 flex items-center justify-between">

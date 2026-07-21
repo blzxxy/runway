@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Check, Clock, Gem, Landmark, RefreshCw, Shield, Wallet, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertTriangle, Check, Clock, Fuel, Gauge, Gem, Landmark, RefreshCw, Shield, Undo2, UtensilsCrossed, Wallet, X } from "lucide-react";
 import { useFinance } from "./finance-provider";
-import { daysUntil, fmt, fmtDate, todayStr } from "@/lib/finance";
+import { addDays, daysUntil, fmt, fmtDate, todayStr } from "@/lib/finance";
 
 export function Bar({
   pct,
@@ -108,6 +108,88 @@ export function CashCard() {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+export function SafeToSpendCard() {
+  const { derived } = useFinance();
+  const sts = derived.safeToSpend;
+  const tone =
+    sts > 50
+      ? { text: "text-green-400", ring: "border-green-900" }
+      : sts > 0
+      ? { text: "text-yellow-400", ring: "border-yellow-900" }
+      : { text: "text-red-400", ring: "border-red-900" };
+  return (
+    <div className={`bg-zinc-900 rounded-3xl p-5 border ${tone.ring}`}>
+      <div className="flex items-center gap-2 text-zinc-400 text-sm">
+        <Gauge size={16} /> Safe to spend today
+      </div>
+      <div className={`text-4xl font-extrabold mt-1 tabular ${tone.text}`}>{fmt(sts)}</div>
+      <p className="text-xs text-zinc-500 mt-1">
+        {sts > 0
+          ? "Spending this much still covers every bill, goal transfer, and weekly budget for the next 8 weeks."
+          : "Projections dip below $0 — check the Timeline before spending anything extra."}
+      </p>
+    </div>
+  );
+}
+
+export function QuickLogCard() {
+  const { quickLog, deleteTx } = useFinance();
+  const [last, setLast] = useState<{ id: string; label: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const log = async (label: string, category: string, amount: number) => {
+    if (busy) return;
+    setBusy(true);
+    const id = await quickLog(category, amount);
+    setBusy(false);
+    if (id) {
+      setLast({ id, label: `${label} ${fmt(amount)}` });
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setLast(null), 6000);
+    }
+  };
+
+  return (
+    <div className="bg-zinc-900 rounded-3xl p-4">
+      <div className="flex gap-2">
+        <button
+          onClick={() => log("Gas", "Gas", 50)}
+          disabled={busy}
+          className="flex-1 py-3 rounded-2xl bg-zinc-800 active:bg-zinc-700 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Fuel size={17} className="text-red-400" /> Gas $50
+        </button>
+        <button
+          onClick={() => log("Food", "Eating out", 30)}
+          disabled={busy}
+          className="flex-1 py-3 rounded-2xl bg-zinc-800 active:bg-zinc-700 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <UtensilsCrossed size={17} className="text-red-400" /> Food $30
+        </button>
+      </div>
+      {last && (
+        <button
+          onClick={() => {
+            deleteTx(last.id);
+            setLast(null);
+          }}
+          className="w-full mt-2 py-1.5 text-xs text-zinc-400 flex items-center justify-center gap-1"
+        >
+          <Check size={12} className="text-green-500" /> Logged {last.label} ·{" "}
+          <span className="underline flex items-center gap-0.5">
+            <Undo2 size={11} /> undo
+          </span>
+        </button>
+      )}
+      <p className="text-xs text-zinc-600 mt-2 text-center">
+        One tap logs it today. Edit the amount later if it differed — bank import will dedupe by hand
+        (delete one) if it also catches it.
+      </p>
     </div>
   );
 }
@@ -253,7 +335,36 @@ export function RingCard() {
           Setting: {fmt(Math.max(0, derived.ringBalance))} of {fmt(profile.ring_setting_cost)}
         </p>
       )}
+      <RingEta />
     </div>
+  );
+}
+
+function RingEta() {
+  const { derived, profile } = useFinance();
+  const total = profile.ring_diamond_cost + profile.ring_setting_cost;
+  const allocM = profile.alloc_ring;
+  const remainingDiamond = Math.max(0, profile.ring_diamond_cost - derived.ringRaised);
+  const remainingTotal = Math.max(0, total - derived.ringRaised);
+  if (allocM <= 0 || remainingTotal <= 0) return null;
+
+  // Contributions start once school is out of the way.
+  const schoolBlocks =
+    profile.school_due_date && !derived.schoolPaid && daysUntil(profile.school_due_date) >= 0;
+  const base = schoolBlocks ? (profile.school_due_date as string) : todayStr();
+
+  const etaFor = (remaining: number) => fmtDate(addDays(base, Math.ceil((remaining / allocM) * 30.4)));
+
+  return (
+    <p className="text-xs text-zinc-500 mt-2">
+      On the {fmt(allocM)}/mo plan{schoolBlocks ? " (starting after school is paid)" : ""}:{" "}
+      {!derived.diamondPurchased && remainingDiamond > 0 && (
+        <>
+          💎 diamond ≈ <b className="text-amber-400">{etaFor(remainingDiamond)}</b> ·{" "}
+        </>
+      )}
+      full ring ≈ <b className="text-amber-400">{etaFor(remainingTotal)}</b>
+    </p>
   );
 }
 

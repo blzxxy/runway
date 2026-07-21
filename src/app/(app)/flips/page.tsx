@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useFinance } from "@/components/finance-provider";
-import { fmt, fmtDate, sellCalc } from "@/lib/finance";
+import { breakEvenPrice, fmt, fmtDate, sellCalc } from "@/lib/finance";
 import type { Flip, FlipStatus } from "@/lib/types";
 
 const STATUS_STYLE: Record<FlipStatus, string> = {
@@ -37,7 +37,7 @@ export default function FlipsPage() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 page-in">
       <h1 className="text-xl font-extrabold tracking-tight mb-1">Flips</h1>
 
       <div className="bg-zinc-900 rounded-2xl p-4 grid grid-cols-3 gap-2 text-center">
@@ -134,6 +134,13 @@ export default function FlipsPage() {
                   Mark paid out
                 </button>
               </div>
+            )}
+
+            {["planned", "preordered", "owned", "listed"].includes(f.status) && cost > 0 && (
+              <p className="text-xs text-zinc-500 mt-2 text-center">
+                Break-even: <b className="text-zinc-300">{fmt(breakEvenPrice(cost, f.qty, f.shipping ?? 11), true)}</b> each
+                after fees + shipping — don't accept offers below that.
+              </p>
             )}
 
             {f.note && <div className="text-xs text-zinc-500 mt-2">{f.note}</div>}

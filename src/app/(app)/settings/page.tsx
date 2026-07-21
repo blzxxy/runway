@@ -209,7 +209,7 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 page-in">
       <h1 className="text-xl font-extrabold tracking-tight">Settings</h1>
 
       <Card title="Money basics">

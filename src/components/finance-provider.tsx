@@ -86,6 +86,7 @@ interface FinanceCtx {
   refresh: () => Promise<void>;
   openAdd: (prefill?: AddPrefill) => void;
   openTxEdit: (tx: Tx) => void;
+  quickLog: (category: string, amount: number) => Promise<string | null>;
   deleteTx: (id: string) => Promise<void>;
   updateTx: (id: string, patch: Partial<Tx>) => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
@@ -360,6 +361,24 @@ export default function FinanceProvider({
     setAddOpen(false);
     setPrefill(null);
     buzz();
+  };
+
+  const quickLog = async (category: string, amount: number): Promise<string | null> => {
+    const { data } = await supabase
+      .from("transactions")
+      .insert({
+        user_id: userId,
+        type: "expense",
+        amount,
+        date: todayStr(),
+        category,
+        note: null,
+      })
+      .select()
+      .single();
+    await load();
+    buzz(20);
+    return data?.id ?? null;
   };
 
   const deleteTx = async (id: string) => {
@@ -659,6 +678,7 @@ export default function FinanceProvider({
         refresh: load,
         openAdd,
         openTxEdit,
+        quickLog,
         deleteTx,
         updateTx,
         updateProfile,
