@@ -11,9 +11,14 @@ import { categorize, type RuleRow } from "./categorize";
 export async function syncUserBanks(
   db: SupabaseClient,
   userId: string
-): Promise<{ imported: number; matched: number; errors: string[] }> {
+): Promise<{
+  imported: number;
+  matched: number;
+  errors: string[];
+  details: { id: string; desc: string; category: string; matchedLabel: string | null; eventId: string | null }[];
+}> {
   const { data: rows } = await db.from("bank_accounts").select("*").eq("user_id", userId);
-  if (!rows || rows.length === 0) return { imported: 0, matched: 0, errors: [] };
+  if (!rows || rows.length === 0) return { imported: 0, matched: 0, errors: [], details: [] };
 
   const [{ data: rules }, { data: events }] = await Promise.all([
     db.from("category_rules").select("*").eq("user_id", userId).order("priority"),
@@ -26,6 +31,7 @@ export async function syncUserBanks(
   let imported = 0;
   let matched = 0;
   const errors: string[] = [];
+  const details: { id: string; desc: string; category: string; matchedLabel: string | null; eventId: string | null }[] = [];
 
   // One Access URL usually covers every account; group rows that share a ciphertext
   // (each connect stores the same encrypted URL on all its rows).
@@ -102,6 +108,14 @@ export async function syncUserBanks(
             .single();
           if (insErr) continue; // duplicate race — skip
           imported++;
+          const detail = {
+            id: ins?.id as string,
+            desc: desc.slice(0, 40),
+            category: cat.category,
+            matchedLabel: null as string | null,
+            eventId: null as string | null,
+          };
+          if (details.length < 8 && ins) details.push(detail);
 
           // Auto-match a pending timeline event (paycheck / car payment):
           // same direction, amount within $5, date within ±2 days.
@@ -119,6 +133,8 @@ export async function syncUserBanks(
             await db.from("events").update({ status: "actual", tx_id: ins.id }).eq("id", match.id);
             (match as any).status = "actual";
             matched++;
+            detail.matchedLabel = match.label;
+            detail.eventId = match.id;
           }
         }
 
@@ -147,5 +163,5 @@ export async function syncUserBanks(
     }
   }
 
-  return { imported, matched, errors };
+  return { imported, matched, errors, details };
 }

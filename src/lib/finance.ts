@@ -65,6 +65,14 @@ export const sellCalc = (priceEach: number, qty: number, shippingEach: number) =
   return { gross, fees, ship, payout: gross - fees - ship };
 };
 
+export const LEVELS = [
+  { level: 1, name: "Getting Started", min: 0 },
+  { level: 2, name: "Building Momentum", min: 250 },
+  { level: 3, name: "Halfway Home", min: 600 },
+  { level: 4, name: "Ring Ready", min: 1500 },
+  { level: 5, name: "Ring Complete", min: 2000 },
+];
+
 export const buzz = (ms = 12) => {
   try {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(ms);
@@ -233,6 +241,22 @@ export function computeDerived(
     .filter((f) => f.payout != null && (f.status === "sold" || f.status === "paid_out"))
     .reduce((s, f) => s + (f.payout ?? 0) - f.buy_price * f.qty, 0);
 
+  // Level system: lifetime saved across all goals (ring contributions count
+  // even after the diamond is bought). Level 6 unlocks with any house savings.
+  const lifetimeSaved = ringRaised + savings.emergency + savings.house;
+  let level = 1;
+  let levelName = "Getting Started";
+  for (const l of LEVELS) {
+    if (lifetimeSaved >= l.min) {
+      level = l.level;
+      levelName = l.name;
+    }
+  }
+  if (savings.house > 0) {
+    level = 6;
+    levelName = "Home Buyer";
+  }
+
   const minBal = items.length ? Math.min(...items.map((i) => i.balAfter)) : cash;
   // Safe-to-spend anchors on whichever is LOWER: the running total or the real
   // bank balance. anchorGap is how much the running total exceeds the bank.
@@ -262,6 +286,9 @@ export function computeDerived(
     safeToSpend,
     anchorGap,
     streak,
+    lifetimeSaved,
+    level,
+    levelName,
   };
 }
 export type Derived = ReturnType<typeof computeDerived>;

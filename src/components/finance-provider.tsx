@@ -121,6 +121,14 @@ interface FinanceCtx {
   signOut: () => Promise<void>;
 }
 
+const LEVEL_COLORS: Record<number, string[]> = {
+  2: ["#34d399", "#6ee7b7", "#d1fae5"],
+  3: ["#f59e0b", "#fcd34d", "#fef3c7"],
+  4: ["#f59e0b", "#fde68a", "#ffffff"],
+  5: ["#fbbf24", "#fde68a", "#ffffff"],
+  6: ["#38bdf8", "#7dd3fc", "#e0f2fe"],
+};
+
 const Ctx = createContext<FinanceCtx | null>(null);
 
 export const useFinance = (): FinanceCtx => {
@@ -150,6 +158,7 @@ export default function FinanceProvider({
   const [celebration, setCelebration] = useState<CelebrationSpec | null>(null);
   const celebrated = useRef<Set<string>>(new Set());
   const bestStreakSaved = useRef(false);
+  const txsRef = useRef<Tx[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoSyncRan = useRef(false);
   const today = todayStr();
@@ -228,6 +237,10 @@ export default function FinanceProvider({
     load();
   }, [load]);
 
+  useEffect(() => {
+    txsRef.current = txs;
+  }, [txs]);
+
   /* Realtime: any change on another device -> debounce a reload. */
   useEffect(() => {
     const scheduleLoad = () => {
@@ -260,8 +273,49 @@ export default function FinanceProvider({
           toast.success(
             `Imported ${json.imported} transaction${json.imported === 1 ? "" : "s"}${
               json.matched ? ` · ${json.matched} matched to timeline` : ""
-            }`
+            }`,
+            { position: "top-center" }
           );
+        }
+        for (const d of (json.details ?? []).slice(0, 4)) {
+          if (d.matchedLabel) {
+            toast(
+              (t) => (
+                <span className="text-sm">
+                  Matched to <b>{d.matchedLabel}</b>{" "}
+                  <button
+                    className="underline font-bold ml-1"
+                    onClick={() => {
+                      unmatchEvent(d.eventId);
+                      toast.dismiss(t.id);
+                    }}
+                  >
+                    undo
+                  </button>
+                </span>
+              ),
+              { icon: "🔗", duration: 5000 }
+            );
+          } else {
+            toast(
+              (t) => (
+                <span className="text-sm">
+                  {d.desc} → <b>{d.category}</b>{" "}
+                  <button
+                    className="underline font-bold ml-1"
+                    onClick={() => {
+                      const tx = txsRef.current.find((x) => x.id === d.id);
+                      if (tx) openTxEdit(tx);
+                      toast.dismiss(t.id);
+                    }}
+                  >
+                    change
+                  </button>
+                </span>
+              ),
+              { duration: 5000 }
+            );
+          }
         }
         if (json.errors?.length) toast.error(String(json.errors[0]), { duration: 6000 });
       } else if (!res.ok) {
@@ -421,6 +475,14 @@ export default function FinanceProvider({
       );
     }
     return id;
+  };
+
+  /** Unlink an auto-matched bank transaction from its timeline event
+   *  (keeps the transaction, reverts the event to pending). */
+  const unmatchEvent = async (evId: string | null) => {
+    if (!evId) return;
+    await supabase.from("events").update({ status: "pending", tx_id: null }).eq("id", evId);
+    await load();
   };
 
   const deleteTx = async (id: string) => {
@@ -705,7 +767,8 @@ export default function FinanceProvider({
     if (!done("ring-diamond") && derived.ringRaised >= profile.ring_diamond_cost) {
       spec = {
         key: "ring-diamond",
-        title: "Diamond funded 💎",
+        title: "Diamond funded",
+        icon: "💎",
         subtitle: "Buy the loose stone before prices shift.",
         cta: "Let's go",
         colors: ["#f59e0b", "#fcd34d", "#fef3c7"],
@@ -740,6 +803,19 @@ export default function FinanceProvider({
           subtitle: `${fmt(paid.payout ?? 0, true)} landed in your account.`,
           colors: ["#a78bfa", "#c4b5fd", "#ede9fe"],
         };
+      }
+    }
+    if (!spec) {
+      for (let k = 2; k <= derived.level; k++) {
+        if (!done(`level-${k}`)) {
+          spec = {
+            key: `level-${k}`,
+            title: `LEVEL ${k} ✨`,
+            subtitle: `${derived.levelName} — ${fmt(derived.lifetimeSaved)} lifetime saved`,
+            colors: LEVEL_COLORS[k] ?? ["#f59e0b", "#ffffff"],
+          };
+          break;
+        }
       }
     }
     if (spec) setCelebration(spec);

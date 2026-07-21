@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 export interface CelebrationSpec {
   key: string;
   title: string;
+  icon?: string;
   subtitle?: string;
   cta?: string;
   colors: string[];
@@ -24,6 +25,11 @@ export default function Celebration({
   useEffect(() => {
     try {
       navigator.vibrate?.([100, 50, 100, 50, 100]);
+    } catch {}
+    try {
+      const chime = new Audio("/sounds/chime.wav");
+      chime.volume = 0.4;
+      chime.play().catch(() => {});
     } catch {}
     const bursts = [0, 250, 600].map((delay) =>
       setTimeout(
@@ -54,6 +60,16 @@ export default function Celebration({
       className="fixed inset-0 flex flex-col items-center justify-center px-8 text-center"
       style={{ zIndex: 80, background: "rgba(0,0,0,0.88)" }}
     >
+      {spec.icon && (
+        <motion.div
+          className="mb-4"
+          style={{ fontSize: 64 }}
+          animate={{ rotateY: 360 }}
+          transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
+        >
+          {spec.icon}
+        </motion.div>
+      )}
       <motion.h1
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
