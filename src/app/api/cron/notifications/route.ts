@@ -40,10 +40,11 @@ export async function GET(req: Request) {
     const { data: profile } = await db.from("profiles").select("*").eq("user_id", uid).maybeSingle();
     if (!profile) continue;
 
-    const [{ data: events }, { data: txs }] = await Promise.all([
+    const [{ data: events }, { data: rawTxs }] = await Promise.all([
       db.from("events").select("*").eq("user_id", uid).eq("status", "pending"),
       db.from("transactions").select("*").eq("user_id", uid),
     ]);
+    const txs = (rawTxs ?? []).filter((t: any) => !t.hidden);
 
     const msgs: { title: string; body: string }[] = [];
 
@@ -113,6 +114,31 @@ export async function GET(req: Request) {
           body: `You've spent ${fmt(weekSpent)} of ${fmt(budget)} this week (gas + eating out).`,
         });
       }
+    }
+
+    // 4b. Sunday-night style weekly recap (cron runs daily; fires on Sundays)
+    if (profile.notify_budget && new Date(today + "T12:00:00").getDay() === 0) {
+      const ws = weekStartOf(today);
+      const wkSpent = (txs ?? [])
+        .filter(
+          (t) =>
+            t.type === "expense" &&
+            (t.category === "Gas" || t.category === "Eating out") &&
+            weekStartOf(t.date) === ws
+        )
+        .reduce((s, t) => s + Number(t.amount), 0);
+      let cash = Number(profile.starting_cash);
+      let ring = 0;
+      for (const t of txs ?? []) {
+        const a = Number(t.amount);
+        if (t.type === "income" || t.type === "flip-sell") cash += a;
+        else if (t.type === "expense" || t.type === "flip-buy" || t.type === "savings") cash -= a;
+        if (t.type === "savings" && t.target === "ring") ring += a;
+      }
+      msgs.push({
+        title: "Week wrapped 📊",
+        body: `Gas+food ${fmt(wkSpent)} of ${fmt(Number(profile.weekly_budget))} · cash ${fmt(Math.round(cash))} · ring fund ${fmt(ring)}.`,
+      });
     }
 
     // 5. Ring fund milestone (sent once)

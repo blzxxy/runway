@@ -40,6 +40,7 @@ export interface Tx {
   source: "manual" | "teller";
   teller_id: string | null;
   account_id: string | null;
+  hidden?: boolean;
   created_at?: string;
 }
 

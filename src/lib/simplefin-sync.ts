@@ -14,22 +14,33 @@ export async function syncUserBanks(
 ): Promise<{
   imported: number;
   matched: number;
+  merged: number;
   errors: string[];
   details: { id: string; desc: string; category: string; matchedLabel: string | null; eventId: string | null }[];
 }> {
   const { data: rows } = await db.from("bank_accounts").select("*").eq("user_id", userId);
-  if (!rows || rows.length === 0) return { imported: 0, matched: 0, errors: [], details: [] };
+  if (!rows || rows.length === 0) return { imported: 0, matched: 0, merged: 0, errors: [], details: [] };
 
-  const [{ data: rules }, { data: events }] = await Promise.all([
+  const [{ data: rules }, { data: events }, { data: manualTxs }] = await Promise.all([
     db.from("category_rules").select("*").eq("user_id", userId).order("priority"),
     db.from("events").select("*").eq("user_id", userId).eq("status", "pending"),
+    db
+      .from("transactions")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("source", "manual")
+      .is("teller_id", null)
+      .in("type", ["income", "expense"]),
   ]);
+  const mergeCandidates = (manualTxs ?? []).slice();
+  const consumed = new Set<string>();
   const paycheckAmounts = Array.from(
     new Set((events ?? []).filter((e) => Number(e.amount) > 0).map((e) => Number(e.amount)))
   );
 
   let imported = 0;
   let matched = 0;
+  let merged = 0;
   const errors: string[] = [];
   const details: { id: string; desc: string; category: string; matchedLabel: string | null; eventId: string | null }[] = [];
 
@@ -90,6 +101,42 @@ export async function syncUserBanks(
           const desc: string = t.description || "Bank transaction";
           const isIncome = amt > 0;
           const cat = categorize(desc, amt, (rules ?? []) as RuleRow[], paycheckAmounts);
+
+          // Auto-merge: if the user already logged this manually (same direction,
+          // within $1, within 3 days), attach the bank record to their log
+          // instead of creating a duplicate.
+          const manualMatch = mergeCandidates.find((m: any) => {
+            if (consumed.has(m.id)) return false;
+            if (m.type !== (isIncome ? "income" : "expense")) return false;
+            if (Math.abs(Number(m.amount) - Math.abs(amt)) > 1) return false;
+            const diff = Math.abs(
+              new Date(m.date + "T12:00:00").getTime() - new Date(date + "T12:00:00").getTime()
+            );
+            return diff <= 3 * 86400000;
+          });
+          if (manualMatch) {
+            consumed.add(manualMatch.id);
+            await db
+              .from("transactions")
+              .update({
+                teller_id: t.id,
+                account_id: acct.id,
+                source: "teller",
+                note: manualMatch.note || desc,
+              })
+              .eq("id", manualMatch.id);
+            merged++;
+            if (details.length < 8)
+              details.push({
+                id: manualMatch.id,
+                desc: desc.slice(0, 40),
+                category: manualMatch.category ?? cat.category,
+                matchedLabel: null,
+                eventId: null,
+                merged: true,
+              });
+            continue;
+          }
 
           const { data: ins, error: insErr } = await db
             .from("transactions")
@@ -167,5 +214,5 @@ export async function syncUserBanks(
     }
   }
 
-  return { imported, matched, errors, details };
+  return { imported, matched, merged, errors, details };
 }

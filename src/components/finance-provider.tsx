@@ -226,7 +226,7 @@ export default function FinanceProvider({
       const again = await supabase.from("events").select("*").eq("user_id", userId).order("date");
       evts = (again.data ?? []).map(normEv);
     }
-    setTxs((t.data ?? []).map(normTx));
+    setTxs((t.data ?? []).map(normTx).filter((x) => !(x as any).hidden));
     setFlips((f.data ?? []).map(normFlip));
     setEvents(evts);
     setBanks((b.data ?? []).map(normBank));
@@ -269,15 +269,19 @@ export default function FinanceProvider({
       const json = await res.json().catch(() => null);
       await load();
       if (res.ok && json) {
-        if (json.imported > 0) {
+        if (json.imported > 0 || json.merged > 0) {
           toast.success(
             `Imported ${json.imported} transaction${json.imported === 1 ? "" : "s"}${
-              json.matched ? ` · ${json.matched} matched to timeline` : ""
-            }`,
+              json.merged ? ` · ${json.merged} merged` : ""
+            }${json.matched ? ` · ${json.matched} matched to timeline` : ""}`,
             { position: "top-center" }
           );
         }
         for (const d of (json.details ?? []).slice(0, 4)) {
+          if (d.merged) {
+            toast.success(`${d.desc} — merged with your manual log`, { duration: 5000 });
+            continue;
+          }
           if (d.matchedLabel) {
             toast(
               (t) => (
@@ -487,7 +491,13 @@ export default function FinanceProvider({
 
   const deleteTx = async (id: string) => {
     const tx = txs.find((t) => t.id === id);
-    await supabase.from("transactions").delete().eq("id", id);
+    if (tx?.teller_id) {
+      // Bank-imported: hide instead of delete so the next sync can't re-import it.
+      const { error } = await supabase.from("transactions").update({ hidden: true }).eq("id", id);
+      if (error) await supabase.from("transactions").delete().eq("id", id); // column missing fallback
+    } else {
+      await supabase.from("transactions").delete().eq("id", id);
+    }
     const evt = events.find((e) => e.tx_id === id);
     if (evt) await supabase.from("events").update({ status: "pending", tx_id: null }).eq("id", evt.id);
     if (tx?.type === "flip-sell" && tx.flip_id) {
