@@ -136,6 +136,16 @@ export function computeDerived(
         weekStartOf(t.date) === ws
     )
     .reduce((s, t) => s + t.amount, 0);
+  // portion of this week's gas+food the BANK has already posted (source teller)
+  const weekSpentPosted = txs
+    .filter(
+      (t) =>
+        t.type === "expense" &&
+        t.source === "teller" &&
+        (t.category === "Gas" || t.category === "Eating out") &&
+        weekStartOf(t.date) === ws
+    )
+    .reduce((s, t) => s + t.amount, 0);
   const dayIdx = ((fromYMD(today).getDay() + 6) % 7) + 1;
   const pace = (weekSpent / dayIdx) * 7;
 
@@ -258,10 +268,16 @@ export function computeDerived(
   }
 
   const minBal = items.length ? Math.min(...items.map((i) => i.balAfter)) : cash;
-  // Safe-to-spend anchors on whichever is LOWER: the running total or the real
-  // bank balance. anchorGap is how much the running total exceeds the bank.
+  // Safe-to-spend is the lower of two self-consistent views:
+  //  A) running-total view: minBal as computed (weekly reserve shrinks with
+  //     everything you've logged, manual or imported)
+  //  B) bank view: shift the whole timeline onto the bank's available balance,
+  //     but only let BANK-POSTED spending shrink the weekly reserve — manual
+  //     logs the bank hasn't seen yet must not free up reserve against it.
   const anchorGap = bankCash != null ? Math.max(0, cash - bankCash) : 0;
-  const safeToSpend = Math.max(0, Math.floor(minBal - anchorGap));
+  const manualUnposted = weekSpent - weekSpentPosted;
+  const minBalBank = bankCash != null ? minBal + (bankCash - cash) - manualUnposted : minBal;
+  const safeToSpend = Math.max(0, Math.floor(Math.min(minBal, minBalBank)));
 
   return {
     cash,
